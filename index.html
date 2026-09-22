@@ -1,0 +1,715 @@
+<title>BQL Inflow Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#F6F7F8; --surface:#FFFFFF; --sunk:#EDF0F2;
+    --ink:#171B1F; --ink2:#4A545E; --muted:#77828D;
+    --line:#E3E7EA; --line2:#D2D8DD;
+    --accent:#17557F; --accent2:#3E88BC; --cat2:#B15A28;
+    --crit:#BE3A2B; --critbg:#FAEBE8; --crittint:#F6E4E1;
+    --warn:#A86A0A; --warnbg:#FBF2E1;
+    --good:#1F6F52; --goodbg:#E9F3EE; --goodtint:#E4F0EA;
+    --b1:#DCE4EB; --b2:#AEC5D6; --b3:#7BA1BD; --b4:#45769A; --b5:#1B5A85; --b6:#EDF0F2;
+    --shadow:0 1px 2px rgba(23,27,31,.06);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --ground:#121518; --surface:#1A1E22; --sunk:#252A2F;
+    --ink:#E9ECEF; --ink2:#B2BCC5; --muted:#8A949E;
+    --line:#2B3138; --line2:#39414A;
+    --accent:#5FA8D8; --accent2:#7FB9E0; --cat2:#E0915C;
+    --crit:#F07A68; --critbg:#33201C; --crittint:#2C1D1A;
+    --warn:#E0A649; --warnbg:#312715;
+    --good:#5FBF96; --goodbg:#182D26; --goodtint:#16281F;
+    --b1:#2E3841; --b2:#3E5A72; --b3:#5581A3; --b4:#74A6C8; --b5:#9CC9E6; --b6:#22272C;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+  }}
+  :root[data-theme="dark"]{
+    --ground:#121518; --surface:#1A1E22; --sunk:#252A2F;
+    --ink:#E9ECEF; --ink2:#B2BCC5; --muted:#8A949E;
+    --line:#2B3138; --line2:#39414A;
+    --accent:#5FA8D8; --accent2:#7FB9E0; --cat2:#E0915C;
+    --crit:#F07A68; --critbg:#33201C; --crittint:#2C1D1A;
+    --warn:#E0A649; --warnbg:#312715;
+    --good:#5FBF96; --goodbg:#182D26; --goodtint:#16281F;
+    --b1:#2E3841; --b2:#3E5A72; --b3:#5581A3; --b4:#74A6C8; --b5:#9CC9E6; --b6:#22272C;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--ground); color:var(--ink); font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:15px; line-height:1.45; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1060px; margin:0 auto; padding-inline:18px; padding-block:24px 56px;}
+  .num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;}
+  .c{color:var(--crit)} .w{color:var(--warn)} .g{color:var(--good)} .m{color:var(--muted)}
+
+  .eyebrow{font-family:"Archivo",sans-serif; font-size:11px; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--muted);}
+  h1{font-family:"Archivo",sans-serif; font-weight:700; font-size:25px; letter-spacing:-.015em; margin:4px 0 0;}
+  h2{font-family:"Archivo",sans-serif; font-weight:600; font-size:13px; letter-spacing:.07em; text-transform:uppercase; color:var(--ink2); margin:0 0 4px; display:flex; align-items:baseline; gap:9px; flex-wrap:wrap;}
+  h2 .n{color:var(--muted); font-size:11px; letter-spacing:.05em; text-transform:none;}
+  .lede{font-size:12.5px; color:var(--muted); margin:0 0 14px; padding-bottom:9px; border-bottom:1px solid var(--line);}
+  section{margin-top:38px}
+  h3{font-family:"Archivo",sans-serif; font-weight:600; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:22px 0 9px;}
+
+  .filters{position:sticky; top:env(safe-area-inset-top,0px); z-index:20; background:var(--ground); padding:10px 0 11px; margin-top:14px; border-bottom:1px solid var(--line2); display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;}
+  .fg{display:flex; flex-direction:column; gap:3px;}
+  .fg label{font-family:"Archivo",sans-serif; font-size:9.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);}
+  .fg select{font-family:inherit; font-size:13px; padding:6px 9px; border:1px solid var(--line2); border-radius:3px; background:var(--surface); color:var(--ink); min-width:140px;}
+  .fg select:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+  .reset{font-family:"Archivo",sans-serif; font-size:11px; font-weight:600; padding:7px 11px; border:1px solid var(--line2); border-radius:3px; background:var(--surface); color:var(--ink2); cursor:pointer;}
+  .scope{font-size:12px; color:var(--muted); margin-left:auto; align-self:center;}
+
+  .heroes{display:grid; grid-template-columns:repeat(auto-fit,minmax(148px,1fr)); gap:1px; margin-top:16px; background:var(--line); border:1px solid var(--line); border-radius:3px; overflow:hidden;}
+  .hero{background:var(--surface); padding:12px 14px;}
+  .hero .k{font-family:"Archivo",sans-serif; font-size:9.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);}
+  .hero .v{font-family:"Archivo",sans-serif; font-size:25px; font-weight:700; letter-spacing:-.02em; line-height:1.15; margin-top:3px;}
+  .hero .d{font-size:11.5px; color:var(--ink2); margin-top:2px;}
+
+  .chartbox{background:var(--surface); border:1px solid var(--line); border-radius:3px; padding:13px 12px 9px; box-shadow:var(--shadow); margin-top:10px;}
+  .chartbox svg{display:block; width:100%; height:auto; max-width:100%;}
+  .sbrow{display:grid; grid-template-columns:62px 1fr 158px; gap:12px; align-items:center; padding:5px 0;}
+  .sbk{font-family:"Archivo",sans-serif; font-weight:600; font-size:12.5px;}
+  .sbt{position:relative; height:26px; background:var(--sunk); border-radius:2px; overflow:hidden;}
+  .sbf{position:absolute; left:0; height:11px; border-radius:2px;}
+  .sbf.now{top:2px; background:var(--accent)}
+  .sbf.was{top:14px; background:var(--line2)}
+  .sbv{text-align:right; font-size:12px; color:var(--ink2); font-family:"Archivo",sans-serif; font-weight:600;}
+  @media (max-width:620px){ .sbrow{grid-template-columns:48px 1fr 116px; gap:8px} }
+  figcaption{font-size:12px; color:var(--muted); margin-top:9px; line-height:1.5;}
+
+  .tw{overflow-x:auto}
+  table.dt{border-collapse:collapse; width:100%; font-size:12.5px; min-width:560px;}
+  table.dt th{font-family:"Archivo",sans-serif; font-size:9.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); text-align:right; padding:0 0 6px 10px; border-bottom:1px solid var(--line2); white-space:nowrap;}
+  table.dt th:first-child{text-align:left; padding-left:0}
+  table.dt td{padding:5px 0 5px 10px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap;}
+  table.dt td:first-child{text-align:left; padding-left:0; font-family:"Archivo",sans-serif; font-weight:600; font-size:12px;}
+  table.dt tr.tot td{border-bottom:none; border-top:2px solid var(--line2); font-weight:700; padding-top:7px;}
+  table.dt tr.hi td{background:var(--critbg)}
+  .bad{color:var(--crit); font-weight:600} .okc{color:var(--good); font-weight:600}
+  .chip{display:inline-block; font-family:"Archivo",sans-serif; font-size:9px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:1px 5px; border-radius:2px;}
+  .chip.a{background:var(--critbg); color:var(--crit)} .chip.w{background:var(--warnbg); color:var(--warn)} .chip.o{background:var(--goodbg); color:var(--good)}
+  .inlinefilters{display:flex; flex-wrap:wrap; gap:7px; align-items:baseline; background:var(--sunk); border-radius:3px; padding:9px 12px; margin-bottom:12px; font-size:12.5px;}
+  .inlinefilters b{font-family:"Archivo",sans-serif; font-weight:600; color:var(--ink);}
+  .inlinefilters .ifl{color:var(--muted)}
+  tr.rowlink{cursor:pointer}
+  tr.rowlink:hover td{background:var(--sunk)}
+  tr.rowlink.hi:hover td{background:var(--critbg); filter:brightness(.97)}
+
+  .contrib{display:flex; flex-direction:column; gap:5px;}
+  .cr{display:grid; grid-template-columns:74px 1fr 74px; gap:11px; align-items:center; font-size:12.5px;}
+  .cr .cl2{font-family:"Archivo",sans-serif; font-weight:600; font-size:12px;}
+  .ctrack{position:relative; height:20px; background:var(--sunk); border-radius:2px;}
+  .czero{position:absolute; inset-block:-3px; width:1px; background:var(--line2);}
+  .cbar{position:absolute; inset-block:3px; border-radius:2px;}
+  .cbar.pos{background:var(--good)} .cbar.neg{background:var(--crit)}
+  .cr .cv2{text-align:right; font-family:"Archivo",sans-serif; font-weight:700; font-size:13px;}
+
+  .mixbar{display:flex; height:30px; border-radius:2px; overflow:hidden; gap:2px;}
+  .mixseg{display:flex; align-items:center; justify-content:center; font-family:"Archivo",sans-serif; font-weight:600; font-size:11px; color:#fff; min-width:2px; overflow:hidden; white-space:nowrap;}
+  .mixrow{display:grid; grid-template-columns:58px 1fr; gap:11px; align-items:center; margin-bottom:6px;}
+  .mixrow .ml{font-family:"Archivo",sans-serif; font-weight:600; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); text-align:right;}
+  .keyrow{display:flex; flex-wrap:wrap; gap:13px; font-size:11.5px; color:var(--muted); margin-top:9px;}
+  .keyrow i{width:10px; height:10px; border-radius:2px; display:inline-block; margin-right:5px;}
+
+  .distrow{display:grid; grid-template-columns:150px 1fr 56px; gap:11px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line);}
+  .distrow:last-child{border-bottom:none}
+  .distrow .dn2{font-family:"Archivo",sans-serif; font-weight:600; font-size:12px; overflow:hidden; text-overflow:ellipsis;}
+  .distrow .dn2 small{display:block; font-weight:400; font-size:10px; color:var(--muted); font-family:"IBM Plex Sans",sans-serif;}
+  .dstack{display:flex; flex-direction:column; gap:3px;}
+  .drow{display:flex; height:12px; border-radius:2px; overflow:hidden; gap:1px;}
+  .drow.past{height:7px; opacity:.55}
+  .distrow .dp{text-align:right; font-family:"Archivo",sans-serif; font-weight:700; font-size:12.5px;}
+
+  .note{background:var(--warnbg); border-radius:2px; padding:10px 12px; font-size:12.5px; color:var(--ink2); line-height:1.5; margin-top:12px;}
+  .note b{font-family:"Archivo",sans-serif; font-weight:600; color:var(--warn);}
+  .foot{margin-top:36px; padding-top:12px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6;}
+  .foot b{color:var(--ink2); font-weight:600}
+  .empty{padding:16px; text-align:center; color:var(--muted); font-size:13px;}
+  .links{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:9px;}
+  .lk{display:block; background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:3px; padding:12px 14px; text-decoration:none; box-shadow:var(--shadow);}
+  .lk b{display:block; font-family:"Archivo",sans-serif; font-weight:600; font-size:13.5px; color:var(--accent); margin-bottom:3px;}
+  .lk span{font-size:12.5px; color:var(--ink2); line-height:1.5;}
+  .lk:hover{border-color:var(--line2); border-left-color:var(--accent);}
+  .lk:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  @media (max-width:620px){ h1{font-size:21px} .cr{grid-template-columns:62px 1fr 62px; gap:8px} .distrow{grid-template-columns:110px 1fr 48px} }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">BQL inflow · live from lead-level data · 23 clusters</div>
+    <h1>BQL Inflow — <span id="asof">…</span></h1>
+  </header>
+
+  <div class="filters">
+    <div class="fg"><label for="fCity">City</label><select id="fCity"></select></div>
+    <div class="fg"><label for="fCh">Channel</label><select id="fCh"></select></div>
+    <div class="fg"><label for="fSub">Sub-channel</label><select id="fSub"></select></div>
+    <div class="fg"><label for="fFrom">From day</label><select id="fFrom" style="min-width:86px"></select></div>
+    <div class="fg"><label for="fTo">To day</label><select id="fTo" style="min-width:86px"></select></div>
+    <button class="reset" id="fReset" type="button">Reset</button>
+    <div class="scope" id="scope"></div>
+  </div>
+
+  <div id="app"><div class="empty">Loading data…</div></div>
+
+  <section>
+    <h2>Related dashboards</h2>
+    <p class="lede">Deeper cuts that sit outside BQL inflow.</p>
+    <div class="links">
+      <a class="lk" href="https://yashk-sse.github.io/Referral-Dashboard/" target="_blank" rel="noopener">
+        <b>Referral Dashboard →</b>
+        <span>Referral channel end to end — MOP vs MTD, effort, funnel, cohorts, velocity and city deep dives. Use this when Referral is the channel in question; it carries detail this page does not.</span>
+      </a>
+      <a class="lk" href="https://docs.google.com/spreadsheets/d/1i_U9CH_b4IzmHfeD8YqQ0BUdDu-xbsNV9BlNxYZI35M/edit?gid=0#gid=0" target="_blank" rel="noopener">
+        <b>BTL Dashboard →</b>
+        <span>BTL activity detail including BDE headcount and per-BDE productivity — the split this page cannot show. Opens for anyone already granted access to the file.</span>
+      </a>
+      <a class="lk" href="https://rushilheda-18.github.io/PAN_India_Daily_Sales_Report/reports/sales_report_sep19.html" target="_blank" rel="noopener">
+        <b>PAN India Daily Sales Report →</b>
+        <span>The full funnel beyond BQL — MS, MD, Order and HoTo, conversion, order-loss attribution and SC productivity across 26 sections.</span>
+      </a>
+    </div>
+  </section>
+
+  <div class="foot">
+    <b>Source.</b> Lead-level raw data, all rows. BQL is the sum of <code>bill_qualified</code>, not a row count. Delhi NCR merges Delhi, Noida, Ghaziabad, Gurgaon and Faridabad. Four channels are in scope: Digital, Referral, BTL and SolarPro. Cold Marketing, Newspaper, Experience Centre, IVR and Affiliate are excluded. Referral leads whose sub-source is BTL count under BTL, not Referral.<br>
+    <b>Benchmarks.</b> LMTD is the same day-span of the previous month. AOP is the full-month Bill Qualified Target from the business plan — Agra, Coimbatore, Jalgaon and Solapur carry no AOP line, so they are excluded from AOP comparisons only.<br>
+    <b>Validation.</b> Aug 1–19 reconciles to the published daily report exactly (37,301). Sep 1–18 differs by 5 leads in 38,003 from late-arriving rows.
+  </div>
+</div>
+
+<script>
+const FMT = n => (n==null||isNaN(n)) ? '–' : Math.round(n).toLocaleString('en-IN');
+const PCT = n => (n==null||isNaN(n)||!isFinite(n)) ? '–' : (n>=0?'+':'') + n.toFixed(1) + '%';
+const PP  = n => (n==null||isNaN(n)) ? '–' : (n>=0?'+':'') + n.toFixed(1) + 'pp';
+const cls = n => n>0 ? 'okc' : (n<0 ? 'bad' : '');
+let D=null, S={city:'all', ch:'all', sub:'all', from:1, to:99};
+
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+fetch('dash.json').then(r=>r.json()).then(j=>{ D=j; boot(); })
+  .catch(()=>{ document.getElementById('app').innerHTML='<div class="empty">Could not load data file.</div>'; });
+
+function boot(){
+  D.day = D.dates.map(d=>+d.slice(8,10));
+  D.mon = D.dates.map(d=>+d.slice(5,7));
+  D.LAST = Math.max(...D.dates.filter(d=>+d.slice(5,7)===9).map(d=>+d.slice(8,10)));
+  const last = D.dates.filter(d=>+d.slice(5,7)===9).sort().pop();
+  document.getElementById('asof').textContent = new Date(last+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long'});
+  fill('fCity', D.cities, 'All 23 clusters');
+  fill('fCh', D.channels, 'All channels');
+  fill('fSub', subsFor(), 'All sub-channels');
+  S.to = D.LAST;
+  const days = [...Array(D.LAST)].map((_,i)=>String(i+1));
+  const df=document.getElementById('fFrom'), dt=document.getElementById('fTo');
+  df.innerHTML = days.map(d=>'<option value="'+d+'">Sep '+d+'</option>').join('');
+  dt.innerHTML = days.map(d=>'<option value="'+d+'">Sep '+d+'</option>').join('');
+  df.value='1'; dt.value=String(D.LAST);
+  ['fCity','fCh','fSub','fFrom','fTo'].forEach(id=>document.getElementById(id).addEventListener('change', onFilter));
+  document.getElementById('app').addEventListener('click', e=>{
+    const tr=e.target.closest('tr.rowlink'); if(!tr) return;
+    S.city=tr.dataset.city; syncSelects(); render();
+    const dd=document.querySelector('#app section:last-of-type');
+    if(dd) dd.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+  document.getElementById('fReset').addEventListener('click', ()=>{ S={city:'all',ch:'all',sub:'all',from:1,to:D.LAST}; syncSelects(); fill('fSub', subsFor(), 'All sub-channels'); render(); });
+  render();
+}
+function fill(id, arr, allLabel){
+  const el=document.getElementById(id); const cur=el.value;
+  el.innerHTML = '<option value="all">'+allLabel+'</option>' + arr.slice().sort().map(v=>'<option value="'+v+'">'+v+'</option>').join('');
+  if(cur && [...el.options].some(o=>o.value===cur)) el.value=cur;
+}
+function subsFor(){
+  const set=new Set();
+  for(const r of D.daily){ if(S.ch!=='all' && D.channels[r[2]]!==S.ch) continue; set.add(D.subs[r[3]]); }
+  return [...set];
+}
+function syncSelects(){ document.getElementById('fCity').value=S.city; document.getElementById('fCh').value=S.ch; document.getElementById('fSub').value=S.sub; document.getElementById('fFrom').value=String(S.from); document.getElementById('fTo').value=String(S.to); }
+function onFilter(){
+  const prevCh=S.ch;
+  S.city=document.getElementById('fCity').value; S.ch=document.getElementById('fCh').value; S.sub=document.getElementById('fSub').value;
+  S.from=+document.getElementById('fFrom').value; S.to=+document.getElementById('fTo').value;
+  if(S.from>S.to){ const t=S.from; S.from=S.to; S.to=t; syncSelects(); }
+  if(S.ch!==prevCh){ S.sub='all'; fill('fSub', subsFor(), 'All sub-channels'); document.getElementById('fSub').value='all'; }
+  render();
+}
+function match(r){
+  if(S.city!=='all' && D.cities[r[1]]!==S.city) return false;
+  if(S.ch!=='all' && D.channels[r[2]]!==S.ch) return false;
+  if(S.sub!=='all' && D.subs[r[3]]!==S.sub) return false;
+  return true;
+}
+function inPeriod(di, m, dmax, dmin){
+  const hi = (dmax===undefined||dmax===null) ? S.to : dmax;
+  const lo = (dmin===undefined||dmin===null) ? S.from : dmin;
+  return D.mon[di]===m && D.day[di]<=hi && D.day[di]>=lo;
+}
+function rangeDays(){ return S.to - S.from + 1; }
+function rangeLabel(){ return S.from===1 && S.to===D.LAST ? 'Sep 1–'+D.LAST : 'Sep '+S.from+'–'+S.to; }
+
+function totals(m, dmax, dmin){
+  let bql=0, leads=0, lrm=0;
+  for(const r of D.daily){ if(!match(r)) continue; if(!inPeriod(r[0], m, dmax, dmin)) continue; leads+=r[4]; bql+=r[5]; lrm+=r[6]; }
+  return {bql, leads, lrm};
+}
+function series(m){
+  const out=new Array(31).fill(0);
+  for(const r of D.daily){ if(!match(r)) continue; if(D.mon[r[0]]!==m) continue; out[D.day[r[0]]]+=r[5]; }
+  return out;
+}
+function byKey(keyFn, m, dmax){
+  const o={};
+  for(const r of D.daily){ if(!match(r)) continue; if(!inPeriod(r[0], m, dmax)) continue;
+    const k=keyFn(r); if(!o[k]) o[k]={bql:0,leads:0}; o[k].bql+=r[5]; o[k].leads+=r[4]; }
+  return o;
+}
+function aopFor(city, ch){
+  let v=0;
+  for(const a of D.aop){
+    if(city && D.cities[a[0]]!==city) continue;
+    if(ch && D.channels[a[1]]!==ch) continue;
+    v+=a[2];
+  }
+  return v;
+}
+function aopScoped(){
+  let v=0;
+  for(const a of D.aop){
+    if(S.city!=='all' && D.cities[a[0]]!==S.city) continue;
+    if(S.ch!=='all' && D.channels[a[1]]!==S.ch) continue;
+    v+=a[2];
+  }
+  return S.sub!=='all' ? null : v;
+}
+
+function render(){
+  const L=D.LAST, DIM=30, pace=rangeDays()/DIM;
+  const mtd=totals(9), lmtd=totals(8), aop=aopScoped();
+  const dPct = lmtd.bql ? (mtd.bql-lmtd.bql)/lmtd.bql*100 : NaN;
+  const proj = mtd.bql/pace;
+  const scopeTxt = [S.city==='all'?'All clusters':S.city, S.ch==='all'?'All channels':S.ch, S.sub==='all'?null:S.sub].filter(Boolean).join(' · ');
+  document.getElementById('scope').textContent = scopeTxt;
+
+  let h='';
+  /* ---- 1 INDIA / SCOPE HEADLINE ---- */
+  h+='<section style="margin-top:20px"><h2>1 · Headline <span class="n">'+scopeTxt+' · '+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</span></h2>';
+  h+='<div class="heroes">';
+  const mopV = S.sub!=='all' ? 0 : mopFor(S.city==='all'?null:S.city, S.ch==='all'?null:S.ch);
+  h+=tile('BQL MTD', FMT(mtd.bql), FMT(mtd.leads)+' leads · '+(mtd.leads?(mtd.bql/mtd.leads*100).toFixed(1):'–')+'% qualify');
+  h+=tile('vs LMTD', PCT(dPct), FMT(mtd.bql-lmtd.bql)+' leads · LMTD '+FMT(lmtd.bql), dPct>=0?'g':'c');
+  h+=mopV>0
+      ? tile('vs MOP', PCT((mtd.bql/mopV-1)*100), FMT(mtd.bql-mopV)+' leads · MOP '+FMT(mopV), (mtd.bql>=mopV)?'g':'c')
+      : tile('vs MOP', '–', S.sub!=='all' ? 'no MOP at sub-channel' : 'no MOP for this scope');
+  h+=mopV>0
+      ? tile('% of MOP', (mtd.bql/mopV*100).toFixed(0)+'%', 'over '+rangeDays()+' days', (mtd.bql>=mopV)?'g':'c')
+      : tile('% of MOP', '–', 'over '+rangeDays()+' days');
+  h+='</div>';
+
+  /* ---- DoD ---- */
+  h+='<h3>Daily BQL · Sep vs Aug</h3>';
+  h+=dodTable();
+
+  /* last 7 days vs same 7 last month */
+  const l7=totals(9,L,L-6), p7=totals(8,L,L-6);
+  const d7 = p7.bql ? (l7.bql-p7.bql)/p7.bql*100 : NaN;
+  h+='<div class="note"><b>Last 7 days.</b> Sep '+(L-6)+'–'+L+' delivered <b>'+FMT(l7.bql)+'</b> BQL against <b>'+FMT(p7.bql)+'</b> for Aug '+(L-6)+'–'+L+' — '+PCT(d7)+', '+FMT(l7.bql-p7.bql)+' leads. Daily average '+FMT(l7.bql/7)+' vs '+FMT(p7.bql/7)+'.</div>';
+  h+='</section>';
+
+  /* ---- 2 CHANNEL ---- */
+  if(S.ch==='all'){
+    const cm=byKey(r=>D.channels[r[2]], 9), cl=byKey(r=>D.channels[r[2]], 8);
+    const tot=Object.values(cm).reduce((a,b)=>a+b.bql,0), totL=Object.values(cl).reduce((a,b)=>a+b.bql,0);
+    h+='<section><h2>2 · Channels <span class="n">volume, mix and contribution</span></h2>';
+    h+='<p class="lede">Mix shows where inflow is concentrated; contribution shows who moved the number.</p>';
+    h+='<div class="mixrow"><div class="ml">MTD</div><div class="mixbar">'+D.channels.map((c,i)=>{
+      const v=(cm[c]?.bql||0), p=tot?v/tot*100:0; if(p<0.4) return '';
+      return '<div class="mixseg" style="width:'+p+'%;background:'+chColor(i)+'">'+(p>7?c+' ':'')+p.toFixed(1)+'%</div>';}).join('')+'</div></div>';
+    h+='<div class="mixrow"><div class="ml">LMTD</div><div class="mixbar" style="opacity:.6">'+D.channels.map((c,i)=>{
+      const v=(cl[c]?.bql||0), p=totL?v/totL*100:0; if(p<0.4) return '';
+      return '<div class="mixseg" style="width:'+p+'%;background:'+chColor(i)+'">'+(p>7?p.toFixed(1)+'%':'')+'</div>';}).join('')+'</div></div>';
+    h+='<div class="keyrow">'+D.channels.map((c,i)=>'<span><i style="background:'+chColor(i)+'"></i>'+c+'</span>').join('')+'</div>';
+
+    h+='<h3>Channel detail</h3><div class="tw"><table class="dt" style="min-width:760px"><tr><th>Channel</th><th>MTD</th><th>Mix</th><th>LMTD</th><th>Mix</th><th>Δ</th><th>Δ%</th><th>Δ mix</th><th>AOP</th><th>vs pace</th></tr>';
+    for(const c of D.channels){
+      const v=cm[c]?.bql||0, lv=cl[c]?.bql||0, a=aopFor(S.city==='all'?null:S.city, c), exp=a*pace;
+      h+='<tr><td>'+c+'</td><td class="num">'+FMT(v)+'</td><td class="num">'+(tot?(v/tot*100).toFixed(1):'–')+'%</td>'+
+         '<td class="num m">'+FMT(lv)+'</td><td class="num m">'+(totL?(lv/totL*100).toFixed(1):'–')+'%</td>'+
+         '<td class="num '+cls(v-lv)+'">'+FMT(v-lv)+'</td><td class="num '+cls(v-lv)+'">'+(lv?PCT((v-lv)/lv*100):'–')+'</td>'+
+         '<td class="num">'+(tot&&totL?PP(v/tot*100-lv/totL*100):'–')+'</td>'+
+         '<td class="num m">'+(a?FMT(a):'–')+'</td><td class="num '+(a?cls(v-exp):'')+'">'+(a?PCT((v/exp-1)*100):'–')+'</td></tr>';
+    }
+    h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(tot)+'</td><td class="num">100%</td><td class="num">'+FMT(totL)+'</td><td class="num">100%</td><td class="num '+cls(tot-totL)+'">'+FMT(tot-totL)+'</td><td class="num '+cls(tot-totL)+'">'+PCT((tot-totL)/totL*100)+'</td><td class="num">–</td><td class="num">'+FMT(aopScoped())+'</td><td class="num">'+PCT((tot/(aopScoped()*pace)-1)*100)+'</td></tr></table></div>';
+
+    h+='<h3>Who moved the number</h3><div class="contrib">';
+    const deltas=D.channels.map(c=>({c, d:(cm[c]?.bql||0)-(cl[c]?.bql||0)})).sort((a,b)=>b.d-a.d);
+    const mx=Math.max(...deltas.map(x=>Math.abs(x.d)),1), zero=45;
+    for(const x of deltas){
+      const w=Math.abs(x.d)/mx*45;
+      h+='<div class="cr"><div class="cl2">'+x.c+'</div><div class="ctrack"><div class="czero" style="left:'+zero+'%"></div>'+
+         '<div class="cbar '+(x.d>=0?'pos':'neg')+'" style="left:'+(x.d>=0?zero:zero-w)+'%;width:'+w+'%"></div></div>'+
+         '<div class="cv2 num '+cls(x.d)+'">'+FMT(x.d)+'</div></div>';
+    }
+    h+='<div class="cr" style="border-top:1px solid var(--line2);padding-top:6px;margin-top:3px"><div class="cl2">Net</div><div class="ctrack" style="background:transparent"></div><div class="cv2 num '+cls(tot-totL)+'">'+FMT(tot-totL)+'</div></div>';
+    h+='</div></section>';
+  }
+
+  /* ---- 3 CITIES ---- */
+  if(S.city==='all'){
+    const km=byKey(r=>D.cities[r[1]], 9), kl=byKey(r=>D.cities[r[1]], 8);
+    const mOK=mopOk();
+    const rows=D.cities.map(c=>{
+      const v=km[c]?.bql||0, lv=kl[c]?.bql||0, a=aopFor(c, S.ch==='all'?null:S.ch), mo=mOK?mopFor(c, S.ch==='all'?null:S.ch):0;
+      return {c, v, lv, d:v-lv, dp:lv?(v-lv)/lv*100:NaN, a, mo, mp:mo?(v/mo-1)*100:NaN, ap:a?v/a*100:NaN};
+    }).sort((a,b)=>a.d-b.d);
+    h+='<section><h2>3 · Cities <span class="n">'+(S.ch==='all'?'all channels':S.ch)+(S.sub==='all'?'':' · '+S.sub)+'</span></h2>';
+    h+='<p class="lede">Ranked by leads gained or lost against the same span last month. Pick a city above to drive the whole page.</p>';
+    h+=quadSvg(rows);
+    h+='<p style="font-size:12px;color:var(--muted);margin:0 0 8px">Click any cluster to open its deep dive.</p>';
+    h+='<div class="tw"><table class="dt" style="min-width:760px"><tr><th>Cluster</th><th>MTD</th><th>LMTD</th><th>Δ</th><th>Δ%</th><th>MOP</th><th>Δ vs MOP</th><th>% MOP</th><th>AOP full month</th><th>% of AOP</th><th>Group</th></tr>';
+    for(const r of rows){
+      const act = r.d<0 && ((!isNaN(r.mp) && r.mp<0) || (isNaN(r.mp) && r.d<0));
+      const grp = r.d<0 ? '<span class="chip a">Act</span>' : (r.d>=0 ? '<span class="chip o">Growing</span>' : '<span class="chip w">Watch</span>');
+      h+='<tr class="rowlink'+(r.d<0?' hi':'')+'" data-city="'+r.c+'"><td>'+r.c+'</td><td class="num">'+FMT(r.v)+'</td><td class="num m">'+FMT(r.lv)+'</td>'+
+         '<td class="num '+cls(r.d)+'">'+FMT(r.d)+'</td><td class="num '+cls(r.d)+'">'+PCT(r.dp)+'</td>'+
+         '<td class="num m">'+(r.mo?FMT(r.mo):'–')+'</td>'+
+         '<td class="num '+(r.mo?cls(r.v-r.mo):'')+'">'+(r.mo?FMT(r.v-r.mo):'–')+'</td>'+
+         '<td class="num '+(r.mo?cls(r.v-r.mo):'')+'">'+(r.mo?(r.v/r.mo*100).toFixed(0)+'%':'–')+'</td>'+
+         '<td class="num m">'+(r.a?FMT(r.a):'–')+'</td>'+
+         '<td class="num m">'+(r.a?r.ap.toFixed(0)+'%':'–')+'</td><td>'+grp+'</td></tr>';
+    }
+    h+='</table></div>';
+    h+='<div class="note" style="background:var(--sunk);color:var(--ink2)"><b>MOP is the day-level target and moves with the date range</b> — it is a flat daily plan, so MOP for any window is the daily target times the days selected. <b>AOP is the full-month plan, shown unaltered</b>; "% of AOP" is simply how much of the month\u2019s plan has landed so far, never prorated.</div>';
+
+    /* city x channel drop drivers */
+    if(S.ch==='all'){
+      const drops=rows.filter(r=>r.d<0);
+      if(drops.length){
+        h+='<h3>Which channel drove each decline</h3><div class="tw"><table class="dt" style="min-width:620px"><tr><th>Cluster</th><th>Total Δ</th>'+D.channels.map(c=>'<th>'+c+'</th>').join('')+'<th>Driver</th></tr>';
+        for(const r of drops){
+          const cells=D.channels.map(c=>{
+            let a=0,b=0;
+            for(const x of D.daily){ if(D.cities[x[1]]!==r.c || D.channels[x[2]]!==c) continue;
+              if(S.sub!=='all' && D.subs[x[3]]!==S.sub) continue;
+              if(inPeriod(x[0],9)) a+=x[5]; if(inPeriod(x[0],8)) b+=x[5]; }
+            return {c, d:a-b, has:(a+b)>0};
+          });
+          const worst=cells.filter(x=>x.d<0).sort((a,b)=>a.d-b.d).slice(0,2).map(x=>x.c);
+          h+='<tr class="hi"><td>'+r.c+'</td><td class="num bad">'+FMT(r.d)+'</td>'+
+             cells.map(x=>'<td class="num '+(x.has?cls(x.d):'m')+'">'+(x.has?FMT(x.d):'—')+'</td>').join('')+
+             '<td class="num">'+(worst.join(' + ')||'—')+'</td></tr>';
+        }
+        h+='</table></div>';
+      }
+    }
+    h+='</section>';
+  }
+
+  /* ---- 4 LEAD QUALITY ---- */
+  h+='<section><h2>4 · Lead quality <span class="n">LQI buckets</span></h2>';
+  h+='<p class="lede">BQL-weighted score distribution. Buckets: 0–2, &gt;2–5, &gt;5–7, &gt;7–9, &gt;9–10. Responds to every filter including the date range.</p>';
+  h+='<div class="inlinefilters"><span class="ifl">Showing</span>'+
+     '<b>'+(S.city==='all'?'All 23 clusters':S.city)+'</b><span class="ifl">·</span>'+
+     '<b>'+(S.ch==='all'?'All channels':S.ch)+'</b><span class="ifl">·</span>'+
+     '<b>'+(S.sub==='all'?'All sub-channels':S.sub)+'</b><span class="ifl">·</span>'+
+     '<b>'+rangeLabel()+'</b>'+
+     '<span class="ifl" style="margin-left:auto">Change these in the filter bar at the top</span></div>';
+  h+=vBars(qualBy(()=>'all')['all'], 'Share of BQL by lead-score bucket. LMTD is the same dates in the previous month.');
+  const qs=qualStats();
+  h+='<div class="heroes" style="margin-top:12px">';
+  h+=tile('Avg score MTD', qs.aM.toFixed(2), 'on '+FMT(qs.bM)+' scored BQL');
+  h+=tile('Avg score LMTD', qs.aL.toFixed(2), 'on '+FMT(qs.bL)+' scored BQL');
+  h+=tile('Premium 7+ share', qs.pM.toFixed(1)+'%', PP(qs.pM-qs.pL)+' vs LMTD', qs.pM>=qs.pL?'g':'c');
+  h+=tile('Premium count', FMT(qs.pcM), FMT(qs.pcM-qs.pcL)+' vs LMTD', qs.pcM>=qs.pcL?'g':'c');
+  h+='</div>';
+
+  h+='</section>';
+
+  /* ---- 5 SC-GENERATED REFERRALS ---- */
+  h+=refSection();
+
+  /* ---- 6 CITY DEEP DIVE ---- */
+  if(S.city!=='all') h+=deepDive();
+
+  document.getElementById('app').innerHTML=h;
+}
+
+/* ---- SC-generated referrals ---- */
+function refSplit(m, city){
+  let sales=0, other=0;
+  for(const r of D.daily){
+    if(D.channels[r[2]]!=='Referral') continue;
+    if(!inPeriod(r[0], m)) continue;
+    if(city && D.cities[r[1]]!==city) continue;
+    if(S.city!=='all' && !city && D.cities[r[1]]!==S.city) continue;
+    if(D.subs[r[3]]==='Sales') sales+=r[5]; else other+=r[5];
+  }
+  return {sales, other, tot:sales+other};
+}
+function refSection(){
+  const m=refSplit(9), l=refSplit(8);
+  const scope = S.city==='all' ? 'All 23 clusters' : S.city;
+  let h='<section><h2>5 · SC-generated referrals <span class="n">'+scope+' · '+rangeLabel()+'</span></h2>';
+  h+='<p class="lede">Referral BQL split by whether a Solar Consultant sourced it. Sales sub-source is SC-generated; everything else in the Referral channel is not. BTL-sourced referrals are excluded here because they now sit under BTL.</p>';
+  h+='<div class="inlinefilters"><span class="ifl">Showing</span><b>'+scope+'</b><span class="ifl">·</span><b>'+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</b><span class="ifl" style="margin-left:auto">City and date filters at the top drive this section</span></div>';
+
+  h+='<div class="heroes">';
+  h+=tile('SC-generated', FMT(m.sales), FMT(m.sales-l.sales)+' vs LMTD '+FMT(l.sales), m.sales>=l.sales?'g':'c');
+  h+=tile('Other referral', FMT(m.other), FMT(m.other-l.other)+' vs LMTD '+FMT(l.other), m.other>=l.other?'g':'c');
+  h+=tile('SC share', m.tot?(m.sales/m.tot*100).toFixed(1)+'%':'–', l.tot?PP(m.sales/m.tot*100-l.sales/l.tot*100)+' vs LMTD':'–');
+  h+=tile('Total referral', FMT(m.tot), (l.tot?PCT((m.tot-l.tot)/l.tot*100):'–')+' vs LMTD', m.tot>=l.tot?'g':'c');
+  h+='</div>';
+
+  /* per-city paired bars */
+  const rows=D.cities.map(c=>{
+    const a=refSplit(9,c), b=refSplit(8,c);
+    return {c, s:a.sales, sl:b.sales, o:a.other, ol:b.other, d:a.sales-b.sales};
+  }).filter(r=>r.s>0||r.sl>0).sort((a,b)=>b.s-a.s);
+  if(rows.length && S.city==='all'){
+    const mx=Math.max(...rows.map(r=>Math.max(r.s,r.sl)),1);
+    h+='<h3>SC-generated referrals by cluster</h3>';
+    h+='<div class="chartbox"><div class="keyrow" style="margin:0 0 10px"><span><i style="background:var(--accent)"></i>'+rangeLabel()+'</span><span><i style="background:var(--line2)"></i>Aug '+S.from+'–'+S.to+'</span></div>';
+    for(const r of rows){
+      h+='<div class="sbrow" style="grid-template-columns:112px 1fr 128px"><div class="sbk">'+r.c+'</div>'+
+         '<div class="sbt"><div class="sbf now" style="width:'+(r.s/mx*100)+'%"></div>'+
+         '<div class="sbf was" style="width:'+(r.sl/mx*100)+'%"></div></div>'+
+         '<div class="sbv num">'+FMT(r.s)+' <span class="'+cls(r.d)+'">'+(r.sl?PCT(r.d/r.sl*100):'new')+'</span></div></div>';
+    }
+    h+='</div>';
+  }
+
+  h+='<h3>Split by cluster</h3><div class="tw"><table class="dt" style="min-width:700px">'+
+     '<tr><th>Cluster</th><th>SC MTD</th><th>SC LMTD</th><th>Δ</th><th>Δ%</th><th>Other MTD</th><th>Other LMTD</th><th>Δ</th><th>SC share</th><th>Δ pp</th></tr>';
+  const src = S.city==='all' ? rows : [{c:S.city, s:m.sales, sl:l.sales, o:m.other, ol:l.other, d:m.sales-l.sales}];
+  for(const r of src){
+    const tm=r.s+r.o, tl=r.sl+r.ol;
+    const sh=tm?r.s/tm*100:0, shl=tl?r.sl/tl*100:0;
+    h+='<tr'+(r.d<0?' class="hi"':'')+'><td>'+r.c+'</td><td class="num">'+FMT(r.s)+'</td><td class="num m">'+FMT(r.sl)+'</td>'+
+       '<td class="num '+cls(r.d)+'">'+FMT(r.d)+'</td><td class="num '+cls(r.d)+'">'+(r.sl?PCT(r.d/r.sl*100):'–')+'</td>'+
+       '<td class="num">'+FMT(r.o)+'</td><td class="num m">'+FMT(r.ol)+'</td>'+
+       '<td class="num '+cls(r.o-r.ol)+'">'+FMT(r.o-r.ol)+'</td>'+
+       '<td class="num">'+sh.toFixed(0)+'%</td><td class="num '+cls(sh-shl)+'">'+PP(sh-shl)+'</td></tr>';
+  }
+  h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(m.sales)+'</td><td class="num">'+FMT(l.sales)+'</td>'+
+     '<td class="num '+cls(m.sales-l.sales)+'">'+FMT(m.sales-l.sales)+'</td><td class="num '+cls(m.sales-l.sales)+'">'+(l.sales?PCT((m.sales-l.sales)/l.sales*100):'–')+'</td>'+
+     '<td class="num">'+FMT(m.other)+'</td><td class="num">'+FMT(l.other)+'</td>'+
+     '<td class="num '+cls(m.other-l.other)+'">'+FMT(m.other-l.other)+'</td>'+
+     '<td class="num">'+(m.tot?(m.sales/m.tot*100).toFixed(0):'–')+'%</td>'+
+     '<td class="num '+cls(m.tot&&l.tot?(m.sales/m.tot-l.sales/l.tot):0)+'">'+(m.tot&&l.tot?PP(m.sales/m.tot*100-l.sales/l.tot*100):'–')+'</td></tr></table></div>';
+  h+='</section>';
+  return h;
+}
+
+/* ---- city deep dive ---- */
+function deepDive(){
+  const pace=rangeDays()/30;
+  let h='<section><h2>6 · '+S.city+' deep dive <span class="n">'+rangeLabel()+'</span></h2>';
+  h+='<p class="lede">Everything for this cluster — channel breakup against both benchmarks, then lead quality by channel and by sub-channel. Channel, sub-channel and date filters above all apply here.</p>';
+
+  const keep={ch:S.ch, sub:S.sub};
+  S.ch='all'; S.sub='all';
+  const cm=byKey(r=>D.channels[r[2]],9), cl=byKey(r=>D.channels[r[2]],8);
+  S.ch=keep.ch; S.sub=keep.sub;
+  const tot=Object.values(cm).reduce((a,b)=>a+b.bql,0), totL=Object.values(cl).reduce((a,b)=>a+b.bql,0);
+
+  const mOK=mopOk();
+  h+='<h3>Lead breakup by channel</h3><div class="tw"><table class="dt" style="min-width:820px">'+
+     '<tr><th>Channel</th><th>MTD</th><th>Mix</th><th>LMTD</th><th>Δ</th><th>Δ%</th><th>MOP</th><th>Δ vs MOP</th><th>% MOP</th><th>AOP full month</th></tr>';
+  for(const c of D.channels){
+    const v=cm[c]?.bql||0, lv=cl[c]?.bql||0, a=aopFor(S.city,c), mo=mOK?mopFor(S.city,c):0;
+    h+='<tr><td>'+c+'</td><td class="num">'+FMT(v)+'</td><td class="num">'+(tot?(v/tot*100).toFixed(1):'–')+'%</td>'+
+       '<td class="num m">'+FMT(lv)+'</td>'+
+       '<td class="num '+cls(v-lv)+'">'+FMT(v-lv)+'</td><td class="num '+cls(v-lv)+'">'+(lv?PCT((v-lv)/lv*100):'–')+'</td>'+
+       '<td class="num m">'+(mOK&&mo?FMT(mo):'–')+'</td>'+
+       '<td class="num '+(mOK&&mo?cls(v-mo):'')+'">'+(mOK&&mo?FMT(v-mo):'–')+'</td>'+
+       '<td class="num '+(mOK&&mo?cls(v-mo):'')+'">'+(mOK&&mo?(v/mo*100).toFixed(0)+'%':'–')+'</td>'+
+       '<td class="num m">'+(a?FMT(a):'–')+'</td></tr>';
+  }
+  const ta=aopFor(S.city,null), tm=mOK?mopFor(S.city,null):0;
+  h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(tot)+'</td><td class="num">100%</td><td class="num">'+FMT(totL)+'</td>'+
+     '<td class="num '+cls(tot-totL)+'">'+FMT(tot-totL)+'</td><td class="num '+cls(tot-totL)+'">'+(totL?PCT((tot-totL)/totL*100):'–')+'</td>'+
+     '<td class="num">'+(mOK&&tm?FMT(tm):'–')+'</td>'+
+     '<td class="num '+(mOK&&tm?cls(tot-tm):'')+'">'+(mOK&&tm?FMT(tot-tm):'–')+'</td>'+
+     '<td class="num '+(mOK&&tm?cls(tot-tm):'')+'">'+(mOK&&tm?(tot/tm*100).toFixed(0)+'%':'–')+'</td>'+
+     '<td class="num">'+(ta?FMT(ta):'–')+'</td></tr></table></div>';
+  if(false) h+='';
+  else if(!ta) h+='<div class="note">This cluster has no AOP line in the business plan, so the AOP column is blank. MOP is unaffected.</div>';
+
+  h+='<h3>Lead quality · '+S.city+'</h3>';
+  h+=vBars(qualBy(()=>'all')['all'], 'Score distribution for this cluster under the current channel, sub-channel and date filters.');
+  h+=lqMatrix('LQI by channel', r=>D.channels[r[3]], 0);
+  h+=lqMatrix('LQI by sub-channel', r=>D.subs[r[4]], 20);
+  h+='</section>';
+  return h;
+}
+
+/* ---- compact LQI matrix: buckets as columns ---- */
+function lqMatrix(title, keyFn, minBql){
+  const q=qualBy(keyFn);
+  const rows=Object.keys(q).filter(k=>q[k].m.tot>minBql||q[k].l.tot>minBql).map(k=>({k,...q[k]})).sort((a,b)=>b.m.tot-a.m.tot);
+  if(!rows.length) return '';
+  let h='<h3>'+title+'</h3><div class="tw"><table class="dt" style="min-width:680px"><tr><th>'+(title.includes('sub')?'Sub-channel':'Channel')+'</th><th>BQL</th>'+
+    D.buckets.map(b=>'<th>'+b+'</th>').join('')+'<th>Premium 7+</th><th>Δ pp</th></tr>';
+  for(const r of rows){
+    const d=r.m.prem-r.l.prem;
+    h+='<tr><td>'+r.k+'</td><td class="num">'+FMT(r.m.tot)+'</td>'+
+       D.buckets.map((b,i)=>{ const p=r.m.tot?r.m.b[i]/r.m.tot*100:0; return '<td class="num'+(i===1&&p>45?' bad':'')+'">'+p.toFixed(1)+'%</td>'; }).join('')+
+       '<td class="num '+(r.m.prem>=30?'okc':(r.m.prem<15?'bad':''))+'">'+r.m.prem.toFixed(1)+'%</td>'+
+       '<td class="num '+cls(d)+'">'+PP(d)+'</td></tr>';
+  }
+  return h+'</table></div>';
+}
+
+function quadSvg(rows){
+  const pts=rows.filter(r=>r.mo>0 && r.lv>0 && !isNaN(r.dp) && !isNaN(r.mp));
+  if(!pts.length) return '<div class="empty">No clusters with both a MOP target and last-month volume in this scope.</div>';
+  const CAP=v=>Math.max(-65,Math.min(65,v));
+  const xs=pts.map(p=>CAP(p.dp)), ys=pts.map(p=>CAP(p.mp));
+  const pad=8;
+  let x0=Math.min(...xs,0)-pad, x1=Math.max(...xs,0)+pad;
+  let y0=Math.min(...ys,0)-pad, y1=Math.max(...ys,0)+pad;
+  if(x1-x0<30){x0-=10;x1+=10;} if(y1-y0<30){y0-=10;y1+=10;}
+  const W=880,H=540, L=118,R=842,T=46,B=452;
+  const px=v=>L+(CAP(v)-x0)/(x1-x0)*(R-L);
+  const py=v=>B-(CAP(v)-y0)/(y1-y0)*(B-T);
+  const zx=px(0), zy=py(0);
+  const maxV=Math.max(...pts.map(p=>p.v));
+  const rad=v=>4+Math.sqrt(v/maxV)*9;
+  const colOf=p=>(p.dp<0&&p.mp<0)?'var(--crit)':((p.dp>=0&&p.mp>=0)?'var(--good)':'var(--accent)');
+  let s='<figure class="chartbox"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Clusters plotted by BQL change versus last month against BQL versus AOP pace. Bottom-left quadrant needs action.">';
+  s+='<rect x="'+L+'" y="'+zy+'" width="'+(zx-L)+'" height="'+(B-zy)+'" fill="var(--crittint)"/>';
+  s+='<rect x="'+zx+'" y="'+T+'" width="'+(R-zx)+'" height="'+(zy-T)+'" fill="var(--goodtint)"/>';
+  s+='<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+B+'" stroke="var(--line2)"/><line x1="'+L+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
+  s+='<line x1="'+zx+'" y1="'+T+'" x2="'+zx+'" y2="'+B+'" stroke="var(--ink2)" stroke-width="1.5" stroke-dasharray="4 3"/>';
+  s+='<line x1="'+L+'" y1="'+zy+'" x2="'+R+'" y2="'+zy+'" stroke="var(--ink2)" stroke-width="1.5" stroke-dasharray="4 3"/>';
+  const tick=(v,axis)=>axis==='x'
+    ? '<text x="'+px(v)+'" y="'+(B+20)+'" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+(v>0?'+':'')+v+'%</text>'
+    : '<text x="'+(L-10)+'" y="'+(py(v)+4)+'" font-size="11" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Sans,sans-serif">'+(v>0?'+':'')+v+'%</text>';
+  const step=(hi,lo)=>{const r=hi-lo; return r>120?40:r>60?20:r>30?10:5;};
+  const sx=step(x1,x0), sy=step(y1,y0);
+  for(let v=Math.ceil(x0/sx)*sx; v<=x1; v+=sx) s+=tick(v,'x');
+  for(let v=Math.ceil(y0/sy)*sy; v<=y1; v+=sy) s+=tick(v,'y');
+  s+='<text x="'+((L+R)/2)+'" y="'+(B+44)+'" font-size="11" font-weight="600" letter-spacing="0.07em" fill="var(--muted)" text-anchor="middle" font-family="Archivo,sans-serif">BQL vs LAST MONTH →</text>';
+  s+='<text x="26" y="'+((T+B)/2)+'" font-size="11" font-weight="600" letter-spacing="0.07em" fill="var(--muted)" text-anchor="middle" font-family="Archivo,sans-serif" transform="rotate(-90 26 '+((T+B)/2)+')">BQL vs MOP →</text>';
+  s+='<text x="'+(L+8)+'" y="'+(T+14)+'" font-size="10.5" font-weight="600" letter-spacing="0.06em" fill="var(--muted)" font-family="Archivo,sans-serif">BEHIND LAST MONTH · AHEAD OF MOP</text>';
+  s+='<text x="'+(R-8)+'" y="'+(T+14)+'" font-size="10.5" font-weight="600" letter-spacing="0.06em" fill="var(--good)" text-anchor="end" font-family="Archivo,sans-serif">GROWING · AHEAD OF MOP</text>';
+  s+='<text x="'+(L+8)+'" y="'+(B-8)+'" font-size="10.5" font-weight="700" letter-spacing="0.06em" fill="var(--crit)" font-family="Archivo,sans-serif">SHRINKING · BEHIND MOP — ACT HERE</text>';
+  s+='<text x="'+(R-8)+'" y="'+(B-8)+'" font-size="10.5" font-weight="600" letter-spacing="0.06em" fill="var(--muted)" text-anchor="end" font-family="Archivo,sans-serif">GROWING · BEHIND MOP</text>';
+  const sorted=pts.slice().sort((a,b)=>b.v-a.v);
+  for(const p of sorted){
+    const cx=px(p.dp), cy=py(p.mp), r=rad(p.v);
+    s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r.toFixed(1)+'" fill="'+colOf(p)+'" stroke="var(--surface)" stroke-width="2"><title>'+p.c+' — '+FMT(p.v)+' BQL · '+PCT(p.dp)+' vs last month · '+PCT(p.mp)+' vs MOP</title></circle>';
+    const right = cx < (L+R)/2;
+    s+='<text x="'+(right?cx+r+5:cx-r-5)+'" y="'+(cy+4)+'" font-size="11.5" font-weight="600" fill="var(--ink)" text-anchor="'+(right?'start':'end')+'" font-family="Archivo,sans-serif">'+p.c+'</text>';
+  }
+  s+='<g font-family="IBM Plex Sans,sans-serif" font-size="11.5" fill="var(--muted)">';
+  s+='<circle cx="'+(L+6)+'" cy="'+(H-26)+'" r="5" fill="var(--crit)"/><text x="'+(L+18)+'" y="'+(H-22)+'">Shrinking &amp; behind MOP</text>';
+  s+='<circle cx="'+(L+186)+'" cy="'+(H-26)+'" r="5" fill="var(--accent)"/><text x="'+(L+198)+'" y="'+(H-22)+'">Mixed</text>';
+  s+='<circle cx="'+(L+276)+'" cy="'+(H-26)+'" r="5" fill="var(--good)"/><text x="'+(L+288)+'" y="'+(H-22)+'">Growing &amp; ahead of MOP</text>';
+  s+='<text x="'+R+'" y="'+(H-22)+'" text-anchor="end">Dot size = BQL volume</text></g>';
+  s+='</svg><figcaption>AOP prorated to '+rangeDays()+' of 30 days. Clusters without an AOP line are listed in the table but cannot be plotted.</figcaption></figure>';
+  return s;
+}
+
+
+function tile(k,v,d,tone){ return '<div class="hero"><div class="k">'+k+'</div><div class="v num'+(tone?' '+tone:'')+'">'+v+'</div><div class="d num">'+d+'</div></div>'; }
+function chColor(i){ return [css('--accent'),css('--good'),css('--accent2'),css('--warn'),css('--cat2')][i%5]; }
+function bkColor(i){ return [css('--b1'),css('--b2'),css('--b3'),css('--b4'),css('--b5'),css('--b6')][i%6]; }
+
+/* bucket row = [month, day, cityIdx, chIdx, subIdx, bucketIdx, bql, score*bql] */
+function bMatch(r){
+  if(r[1]<S.from || r[1]>S.to) return false;
+  if(S.city!=='all' && D.cities[r[2]]!==S.city) return false;
+  if(S.ch!=='all' && D.channels[r[3]]!==S.ch) return false;
+  if(S.sub!=='all' && D.subs[r[4]]!==S.sub) return false;
+  return true;
+}
+function qualStats(){
+  let bM=0,bL=0,sM=0,sL=0,pM=0,pL=0,tM=0,tL=0;
+  for(const r of D.bucket){
+    if(!bMatch(r)) continue;
+    const isSep=r[0]===9, bq=r[6], sxb=r[7], bk=D.buckets[r[5]];
+    if(isSep){ tM+=bq; if(bk!=='No Score'){bM+=bq; sM+=sxb;} if(bk==='7-9'||bk==='9-10') pM+=bq; }
+    else { tL+=bq; if(bk!=='No Score'){bL+=bq; sL+=sxb;} if(bk==='7-9'||bk==='9-10') pL+=bq; }
+  }
+  return {aM:bM?sM/bM:0, aL:bL?sL/bL:0, bM, bL, pM:tM?pM/tM*100:0, pL:tL?pL/tL*100:0, pcM:pM, pcL:pL};
+}
+function qualBy(keyFn){
+  const o={};
+  for(const r of D.bucket){
+    if(!bMatch(r)) continue;
+    const k=keyFn(r); if(!o[k]) o[k]={m:{b:new Array(6).fill(0),tot:0,prem:0}, l:{b:new Array(6).fill(0),tot:0,prem:0}};
+    const t = r[0]===9 ? o[k].m : o[k].l;
+    t.b[r[5]]+=r[6]; t.tot+=r[6];
+  }
+  for(const k in o){ for(const t of [o[k].m,o[k].l]){ t.prem = t.tot ? (t.b[3]+t.b[4])/t.tot*100 : 0; } }
+  return o;
+}
+/* MOP is a flat daily target, so a range total is rate x days */
+function mopFor(city, ch){
+  let r=0;
+  for(const m of D.mopRate){
+    if(city && D.cities[m[0]]!==city) continue;
+    if(ch && D.channels[m[1]]!==ch) continue;
+    r+=m[2];
+  }
+  return r*rangeDays();
+}
+function mopOk(){ return true; }
+
+/* ---- vertical bar chart, SVG ---- */
+function vBars(q, caption){
+  if(!q || (!q.m.tot && !q.l.tot)) return '<div class="empty">No scored BQL in this scope.</div>';
+  const bs=D.buckets.map((b,i)=>({b, m:q.m.tot?q.m.b[i]/q.m.tot*100:0, l:q.l.tot?q.l.b[i]/q.l.tot*100:0, mc:q.m.b[i], lc:q.l.b[i]}));
+  const top=Math.max(10, Math.ceil(Math.max(...bs.map(x=>Math.max(x.m,x.l)))/5)*5+5);
+  const W=760,H=300,L=52,R=742,T=16,B=232;
+  const bw=(R-L)/bs.length, pad=bw*0.16, w=(bw-pad*2)/2;
+  const py=v=>B-(v/top)*(B-T);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Share of BQL by lead-score bucket, September against August.">';
+  for(let g=0; g<=top; g+=(top>30?10:5)){
+    s+='<line x1="'+L+'" y1="'+py(g)+'" x2="'+R+'" y2="'+py(g)+'" stroke="var(--line)"/>';
+    s+='<text x="'+(L-8)+'" y="'+(py(g)+4)+'" font-size="10.5" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Sans,sans-serif">'+g+'%</text>';
+  }
+  bs.forEach((x,i)=>{
+    const x0=L+i*bw+pad;
+    s+='<rect x="'+x0+'" y="'+py(x.m)+'" width="'+w+'" height="'+(B-py(x.m))+'" fill="var(--accent)" rx="2"><title>'+x.b+' · Sep '+FMT(x.mc)+' ('+x.m.toFixed(1)+'%)</title></rect>';
+    s+='<rect x="'+(x0+w+2)+'" y="'+py(x.l)+'" width="'+w+'" height="'+(B-py(x.l))+'" fill="var(--line2)" rx="2"><title>'+x.b+' · Aug '+FMT(x.lc)+' ('+x.l.toFixed(1)+'%)</title></rect>';
+    s+='<text x="'+(x0+w+1)+'" y="'+(B+18)+'" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="Archivo,sans-serif">'+x.b+'</text>';
+    if(x.m>=1.5) s+='<text x="'+(x0+w/2)+'" y="'+(py(x.m)-5)+'" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.m.toFixed(1)+'%</text>';
+  });
+  s+='<line x1="'+L+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
+  s+='<rect x="'+L+'" y="'+(H-26)+'" width="12" height="10" fill="var(--accent)" rx="2"/><text x="'+(L+18)+'" y="'+(H-17)+'" font-size="11.5" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">'+rangeLabel()+'</text>';
+  s+='<rect x="'+(L+140)+'" y="'+(H-26)+'" width="12" height="10" fill="var(--line2)" rx="2"/><text x="'+(L+158)+'" y="'+(H-17)+'" font-size="11.5" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">Aug '+S.from+'–'+S.to+'</text>';
+  s+='</svg>';
+  let t='<div class="tw" style="margin-top:12px"><table class="dt" style="min-width:520px"><tr><th>Bucket</th><th>MTD count</th><th>MTD %</th><th>LMTD count</th><th>LMTD %</th><th>Δ pp</th></tr>';
+  bs.forEach(x=>{ const d=x.m-x.l;
+    t+='<tr><td>'+x.b+'</td><td class="num">'+FMT(x.mc)+'</td><td class="num">'+x.m.toFixed(1)+'%</td><td class="num m">'+FMT(x.lc)+'</td><td class="num m">'+x.l.toFixed(1)+'%</td><td class="num '+cls(d)+'">'+PP(d)+'</td></tr>'; });
+  t+='<tr class="tot"><td>Total</td><td class="num">'+FMT(q.m.tot)+'</td><td class="num">—</td><td class="num">'+FMT(q.l.tot)+'</td><td class="num">—</td><td class="num">—</td></tr></table></div>';
+  return '<div class="chartbox">'+s+'</div>'+t+(caption?'<figcaption>'+caption+'</figcaption>':'');
+}
+
+function dodTable(){
+  const sep=series(9), aug=series(8), L=D.LAST, from=Math.max(1,L-6);
+  const WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let sT=0,aT=0;
+  let t='<div class="tw"><table class="dt" style="min-width:560px"><tr><th>Date</th><th>MTD · Sep</th><th>LMTD · Aug</th><th>Δ</th><th>Δ%</th><th>Share of Sep 7d</th></tr>';
+  for(let d=from; d<=L; d++){ sT+=sep[d]; aT+=aug[d]; }
+  for(let d=from; d<=L; d++){
+    const s=sep[d], a=aug[d], dd=s-a;
+    const wdS=WD[new Date(2026,8,d).getDay()], wdA=WD[new Date(2026,7,d).getDay()];
+    t+='<tr'+((a && dd/a*100<=-20)?' class="hi"':'')+'>'+
+       '<td>'+d+' <span class="m" style="font-weight:400">'+wdS+' / '+wdA+'</span></td>'+
+       '<td class="num">'+FMT(s)+'</td><td class="num m">'+FMT(a)+'</td>'+
+       '<td class="num '+cls(dd)+'">'+FMT(dd)+'</td>'+
+       '<td class="num '+cls(dd)+'">'+(a?PCT(dd/a*100):'–')+'</td>'+
+       '<td class="num m">'+(sT?(s/sT*100).toFixed(1):'–')+'%</td></tr>';
+  }
+  t+='<tr class="tot"><td>Sep '+from+'–'+L+'</td><td class="num">'+FMT(sT)+'</td><td class="num">'+FMT(aT)+'</td>'+
+     '<td class="num '+cls(sT-aT)+'">'+FMT(sT-aT)+'</td><td class="num '+cls(sT-aT)+'">'+(aT?PCT((sT-aT)/aT*100):'–')+'</td>'+
+     '<td class="num">100%</td></tr>'+
+     '<tr><td class="m" style="font-weight:400">Daily average</td><td class="num">'+FMT(sT/7)+'</td><td class="num m">'+FMT(aT/7)+'</td>'+
+     '<td class="num '+cls(sT-aT)+'">'+FMT((sT-aT)/7)+'</td><td class="num '+cls(sT-aT)+'">'+(aT?PCT((sT-aT)/aT*100):'–')+'</td><td class="num m">–</td></tr>'+
+     '</table></div>';
+  t+='<figcaption style="margin-top:8px">Last 7 days of the month-to-date window against the same 7 dates in August. The second weekday on each row is August’s — where they differ, part of the gap is calendar, not performance. Rows shaded red are 20% or more below the same date last month.</figcaption>';
+  return t;
+}
+</script>
