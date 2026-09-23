@@ -319,7 +319,9 @@ function render(){
   if(S.ch==='all'){
     const cm=byKey(r=>D.channels[r[2]], 9), cl=byKey(r=>D.channels[r[2]], 8);
     const tot=Object.values(cm).reduce((a,b)=>a+b.bql,0), totL=Object.values(cl).reduce((a,b)=>a+b.bql,0);
-    h+='<section><h2>2 · Channels <span class="n">volume, mix and contribution</span></h2>';
+    h+=lrmSection();
+
+  h+='<section><h2>3 · Channels <span class="n">volume, mix and contribution</span></h2>';
     h+='<p class="lede">Mix shows where inflow is concentrated; contribution shows who moved the number.</p>';
     h+='<div class="mixrow"><div class="ml">MTD</div><div class="mixbar">'+D.channels.map((c,i)=>{
       const v=(cm[c]?.bql||0), p=tot?v/tot*100:0; if(p<0.4) return '';
@@ -361,7 +363,7 @@ function render(){
       const v=km[c]?.bql||0, lv=kl[c]?.bql||0, a=aopFor(c, S.ch==='all'?null:S.ch), mo=mOK?mopFor(c, S.ch==='all'?null:S.ch):0;
       return {c, v, lv, d:v-lv, dp:lv?(v-lv)/lv*100:NaN, a, mo, mp:mo?(v/mo-1)*100:NaN, ap:a?v/a*100:NaN};
     }).sort((a,b)=>a.d-b.d);
-    h+='<section><h2>3 · Cities <span class="n">'+(S.ch==='all'?'all channels':S.ch)+(S.sub==='all'?'':' · '+S.sub)+'</span></h2>';
+    h+='<section><h2>4 · Cities <span class="n">'+(S.ch==='all'?'all channels':S.ch)+(S.sub==='all'?'':' · '+S.sub)+'</span></h2>';
     h+='<p class="lede">Ranked by leads gained or lost against the same span last month. Pick a city above to drive the whole page.</p>';
     h+=quadSvg(rows);
     h+='<p style="font-size:12px;color:var(--muted);margin:0 0 8px">Click any cluster to open its deep dive.</p>';
@@ -405,7 +407,7 @@ function render(){
   }
 
   /* ---- 4 LEAD QUALITY ---- */
-  h+='<section><h2>4 · Lead quality <span class="n">LQI buckets</span></h2>';
+  h+='<section><h2>5 · Lead quality <span class="n">LQI buckets</span></h2>';
   h+='<p class="lede">BQL-weighted score distribution. Buckets: 0–2, &gt;2–5, &gt;5–7, &gt;7–9, &gt;9–10. Responds to every filter including the date range.</p>';
   h+='<div class="inlinefilters"><span class="ifl">Showing</span>'+
      '<b>'+(S.city==='all'?'All 23 clusters':S.city)+'</b><span class="ifl">·</span>'+
@@ -445,10 +447,88 @@ function refSplit(m, city){
   }
   return {sales, other, tot:sales+other};
 }
+/* ---- lead sent to LRM ----
+   LRM is carried for all four channels but the organisation reads it for Digital only:
+   Referral, BTL and SolarPro land above 100% because leads reach the LRM without
+   passing the bill-qualification gate first. Digital is the default view; the other
+   channels are shown for completeness and flagged. */
+function lrmAgg(m, ch, city, sub){
+  let bql=0, lrm=0;
+  for(const r of D.daily){
+    if(city && D.cities[r[1]]!==city) continue;
+    if(ch   && D.channels[r[2]]!==ch) continue;
+    if(sub  && D.subs[r[3]]!==sub) continue;
+    if(!inPeriod(r[0], m)) continue;
+    bql+=r[5]; lrm+=r[6];
+  }
+  return {bql, lrm, pct: bql ? lrm/bql*100 : 0};
+}
+function lrmSection(){
+  const city = S.city==='all' ? null : S.city;
+  const scope = S.city==='all' ? 'All 23 clusters' : S.city;
+  const m = lrmAgg(9,'Digital',city), l = lrmAgg(8,'Digital',city);
+
+  let h='<section><h2>2 · Lead sent to LRM <span class="n">Digital · '+scope+' · '+rangeLabel()+'</span></h2>';
+  h+='<p class="lede">BQL to Lead-sent-to-LRM, read on Digital only. The other three channels are carried in the data but their leads reach the LRM without clearing bill qualification first, so their ratio runs above 100% and is not a conversion. City and date filters above apply; the channel filter does not — this section is fixed to Digital.</p>';
+
+  h+='<div class="heroes">';
+  h+=tile('Digital BQL', FMT(m.bql), FMT(m.bql-l.bql)+' vs LMTD '+FMT(l.bql), m.bql>=l.bql?'g':'c');
+  h+=tile('Sent to LRM', FMT(m.lrm), FMT(m.lrm-l.lrm)+' vs LMTD '+FMT(l.lrm), m.lrm>=l.lrm?'g':'c');
+  h+=tile('BQL → LRM', m.bql?m.pct.toFixed(1)+'%':'–', l.bql?PP(m.pct-l.pct)+' vs LMTD '+l.pct.toFixed(1)+'%':'–', m.pct>=l.pct?'g':'c');
+  h+=tile('Not sent', FMT(m.bql-m.lrm), (m.bql?(100-m.pct).toFixed(1):'–')+'% of Digital BQL', (m.pct>=l.pct)?'g':'c');
+  h+='</div>';
+
+  /* per-cluster, Digital */
+  if(S.city==='all'){
+    const rows=D.cities.map(c=>{
+      const a=lrmAgg(9,'Digital',c), b=lrmAgg(8,'Digital',c);
+      return {c, bql:a.bql, lrm:a.lrm, p:a.pct, pl:b.pct, d:a.pct-b.pct};
+    }).filter(r=>r.bql>0).sort((a,b)=>a.p-b.p);
+
+    const mx=Math.max(...rows.map(r=>r.p),1);
+    h+='<h3>BQL → LRM by cluster <span class="n">lowest first</span></h3>';
+    h+='<div class="chartbox">';
+    for(const r of rows){
+      h+='<div class="sbrow" style="grid-template-columns:112px 1fr 150px"><div class="sbk">'+r.c+'</div>'+
+         '<div class="sbt"><div class="sbf now" style="width:'+(r.p/mx*100)+'%"></div></div>'+
+         '<div class="sbv num">'+r.p.toFixed(1)+'% <span class="'+cls(r.d)+'">'+PP(r.d)+'</span></div></div>';
+    }
+    h+='</div>';
+
+    h+='<h3>Cluster detail</h3><div class="tw"><table class="dt" style="min-width:680px">'+
+       '<tr><th>Cluster</th><th>Digital BQL</th><th>Sent to LRM</th><th>Not sent</th><th>BQL→LRM</th><th>LMTD</th><th>Δ pp</th></tr>';
+    for(const r of rows){
+      h+='<tr'+(r.d<0?' class="hi"':'')+'><td>'+r.c+'</td><td class="num">'+FMT(r.bql)+'</td>'+
+         '<td class="num">'+FMT(r.lrm)+'</td><td class="num m">'+FMT(r.bql-r.lrm)+'</td>'+
+         '<td class="num">'+r.p.toFixed(1)+'%</td><td class="num m">'+r.pl.toFixed(1)+'%</td>'+
+         '<td class="num '+cls(r.d)+'">'+PP(r.d)+'</td></tr>';
+    }
+    h+='<tr class="tot"><td>Digital total</td><td class="num">'+FMT(m.bql)+'</td><td class="num">'+FMT(m.lrm)+'</td>'+
+       '<td class="num">'+FMT(m.bql-m.lrm)+'</td><td class="num">'+m.pct.toFixed(1)+'%</td>'+
+       '<td class="num">'+l.pct.toFixed(1)+'%</td><td class="num '+cls(m.pct-l.pct)+'">'+PP(m.pct-l.pct)+'</td></tr>';
+    h+='</table></div>';
+  }
+
+  /* all channels, flagged */
+  h+='<h3>All channels <span class="n">reference only — not a conversion outside Digital</span></h3>';
+  h+='<div class="tw"><table class="dt" style="min-width:560px">'+
+     '<tr><th>Channel</th><th>BQL</th><th>Sent to LRM</th><th>Ratio</th><th>Read?</th></tr>';
+  for(const c of D.channels){
+    const a=lrmAgg(9,c,city);
+    const ok = c==='Digital';
+    h+='<tr'+(ok?' class="hi"':'')+'><td>'+c+'</td><td class="num">'+FMT(a.bql)+'</td>'+
+       '<td class="num">'+FMT(a.lrm)+'</td><td class="num">'+(a.bql?a.pct.toFixed(1)+'%':'–')+'</td>'+
+       '<td class="m">'+(ok?'tracked':'not tracked')+'</td></tr>';
+  }
+  h+='</table></div>';
+  h+='</section>';
+  return h;
+}
+
 function refSection(){
   const m=refSplit(9), l=refSplit(8);
   const scope = S.city==='all' ? 'All 23 clusters' : S.city;
-  let h='<section><h2>5 · SC-generated referrals <span class="n">'+scope+' · '+rangeLabel()+'</span></h2>';
+  let h='<section><h2>6 · SC-generated referrals <span class="n">'+scope+' · '+rangeLabel()+'</span></h2>';
   h+='<p class="lede">Referral BQL split by whether a Solar Consultant sourced it. Sales sub-source is SC-generated; everything else in the Referral channel is not. BTL-sourced referrals are excluded here because they now sit under BTL.</p>';
   h+='<div class="inlinefilters"><span class="ifl">Showing</span><b>'+scope+'</b><span class="ifl">·</span><b>'+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</b><span class="ifl" style="margin-left:auto">City and date filters at the top drive this section</span></div>';
 
@@ -502,7 +582,7 @@ function refSection(){
 /* ---- city deep dive ---- */
 function deepDive(){
   const pace=rangeDays()/30;
-  let h='<section><h2>6 · '+S.city+' deep dive <span class="n">'+rangeLabel()+'</span></h2>';
+  let h='<section><h2>7 · '+S.city+' deep dive <span class="n">'+rangeLabel()+'</span></h2>';
   h+='<p class="lede">Everything for this cluster — channel breakup against both benchmarks, then lead quality by channel and by sub-channel. Channel, sub-channel and date filters above all apply here.</p>';
 
   const keep={ch:S.ch, sub:S.sub};
