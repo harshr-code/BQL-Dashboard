@@ -41,6 +41,15 @@
   .wrap{max-width:1060px; margin:0 auto; padding-inline:18px; padding-block:24px 56px;}
   .num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;}
   .c{color:var(--crit)} .w{color:var(--warn)} .g{color:var(--good)} .m{color:var(--muted)}
+.ar{font-size:0.82em; margin-right:2px; letter-spacing:0}
+.ar.g{color:var(--good)} .ar.c{color:var(--crit)} .ar.f{color:var(--muted)}
+details.fold{margin-top:14px; border:1px solid var(--line); border-radius:3px; background:var(--surface);}
+details.fold>summary{cursor:pointer; padding:10px 13px; font-family:Archivo,sans-serif; font-size:13px; font-weight:600; color:var(--ink); list-style:none; display:flex; align-items:center; gap:8px;}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:'▸'; color:var(--muted); font-size:11px; transition:transform .12s}
+details.fold[open]>summary::before{content:'▾'}
+details.fold>summary .n{font-weight:400; color:var(--muted); font-size:11.5px; margin-left:auto}
+details.fold>.foldbody{padding:0 13px 13px}
 
   .eyebrow{font-family:"Archivo",sans-serif; font-size:11px; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--muted);}
   h1{font-family:"Archivo",sans-serif; font-weight:700; font-size:25px; letter-spacing:-.015em; margin:4px 0 0;}
@@ -83,6 +92,10 @@
   table.dt td{padding:5px 0 5px 10px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap;}
   table.dt td:first-child{text-align:left; padding-left:0; font-family:"Archivo",sans-serif; font-weight:600; font-size:12px;}
   table.dt tr.tot td{border-bottom:none; border-top:2px solid var(--line2); font-weight:700; padding-top:7px;}
+table.dt.compact{font-size:11.5px; min-width:0;}
+table.dt.compact td{padding:3px 0 3px 8px;}
+table.dt.compact th{padding:0 0 4px 8px;}
+table.dt.compact td:first-child{font-size:11.5px;}
   table.dt tr.hi td{background:var(--critbg)}
   .bad{color:var(--crit); font-weight:600} .okc{color:var(--good); font-weight:600}
   .chip{display:inline-block; font-family:"Archivo",sans-serif; font-size:9px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:1px 5px; border-radius:2px;}
@@ -155,6 +168,10 @@
     <h2>Related dashboards</h2>
     <p class="lede">Deeper cuts that sit outside BQL inflow.</p>
     <div class="links">
+      <a class="lk" href="https://docs.google.com/spreadsheets/d/1ob6DsJ9v-beE2nEVvU5Z7ANdx9U_7YANb6QGax5KK7U/edit?gid=17143787#gid=17143787" target="_blank" rel="noopener">
+        <b>Digital →</b>
+        <span>Digital channel detail — Google and Meta at campaign and sub-channel level, spend and CPBQL. Use this when the question is which digital sub-channel moved, which this page does not break out.</span>
+      </a>
       <a class="lk" href="https://yashk-sse.github.io/Referral-Dashboard/" target="_blank" rel="noopener">
         <b>Referral Dashboard →</b>
         <span>Referral channel end to end — MOP vs MTD, effort, funnel, cohorts, velocity and city deep dives. Use this when Referral is the channel in question; it carries detail this page does not.</span>
@@ -300,14 +317,17 @@ function render(){
   h+=mopV>0
       ? tile('vs MOP', PCT((mtd.bql/mopV-1)*100), FMT(mtd.bql-mopV)+' leads · MOP '+FMT(mopV), (mtd.bql>=mopV)?'g':'c')
       : tile('vs MOP', '–', S.sub!=='all' ? 'no MOP at sub-channel' : 'no MOP for this scope');
-  h+=mopV>0
-      ? tile('% of MOP', (mtd.bql/mopV*100).toFixed(0)+'%', 'over '+rangeDays()+' days', (mtd.bql>=mopV)?'g':'c')
-      : tile('% of MOP', '–', 'over '+rangeDays()+' days');
+  const aopPace = aop ? aop*pace : 0;   /* AOP is a full-month plan — prorate to the window */
+  h+=aop
+      ? tile('AOP target', FMT(aop), FMT(aopPace)+' to date · '+(aopPace?DPC((mtd.bql/aopPace-1)*100):'–'), (mtd.bql>=aopPace)?'g':'c')
+      : tile('AOP target', '–', S.sub!=='all' ? 'no AOP at sub-channel' : 'no AOP for this scope');
   h+='</div>';
+  if(S.ch==='all' || S.ch==='Others') h+='<div class="note m" style="margin-top:10px">MOP and AOP cover the four planned channels only. Others carries no plan, so plan comparisons on an all-channel view run slightly flattering.</div>';
 
-  /* ---- DoD ---- */
-  h+='<h3>Daily BQL · Sep vs Aug</h3>';
+  /* ---- DoD, collapsible ---- */
+  h+='<details class="fold" open><summary>Daily BQL · Sep vs Aug<span class="n">last 10 days · click to collapse</span></summary><div class="foldbody">';
   h+=dodTable();
+  h+='</div></details>';
 
   /* last 7 days vs same 7 last month */
   const l7=totals(9,L,L-6), p7=totals(8,L,L-6);
@@ -336,11 +356,11 @@ function render(){
       const v=cm[c]?.bql||0, lv=cl[c]?.bql||0, a=aopFor(S.city==='all'?null:S.city, c), exp=a*pace;
       h+='<tr><td>'+c+'</td><td class="num">'+FMT(v)+'</td><td class="num">'+(tot?(v/tot*100).toFixed(1):'–')+'%</td>'+
          '<td class="num m">'+FMT(lv)+'</td><td class="num m">'+(totL?(lv/totL*100).toFixed(1):'–')+'%</td>'+
-         '<td class="num '+cls(v-lv)+'">'+FMT(v-lv)+'</td><td class="num '+cls(v-lv)+'">'+(lv?PCT((v-lv)/lv*100):'–')+'</td>'+
-         '<td class="num">'+(tot&&totL?PP(v/tot*100-lv/totL*100):'–')+'</td>'+
-         '<td class="num m">'+(a?FMT(a):'–')+'</td><td class="num '+(a?cls(v-exp):'')+'">'+(a?PCT((v/exp-1)*100):'–')+'</td></tr>';
+         '<td class="num">'+DLT(v-lv)+'</td><td class="num">'+(lv?DPC((v-lv)/lv*100):'–')+'</td>'+
+         '<td class="num">'+(tot&&totL?DPP(v/tot*100-lv/totL*100):'–')+'</td>'+
+         '<td class="num m">'+(a?FMT(a):'–')+'</td><td class="num">'+(a?DPC((v/exp-1)*100):'–')+'</td></tr>';
     }
-    h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(tot)+'</td><td class="num">100%</td><td class="num">'+FMT(totL)+'</td><td class="num">100%</td><td class="num '+cls(tot-totL)+'">'+FMT(tot-totL)+'</td><td class="num '+cls(tot-totL)+'">'+PCT((tot-totL)/totL*100)+'</td><td class="num">–</td><td class="num">'+FMT(aopScoped())+'</td><td class="num">'+PCT((tot/(aopScoped()*pace)-1)*100)+'</td></tr></table></div>';
+    h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(tot)+'</td><td class="num">100%</td><td class="num">'+FMT(totL)+'</td><td class="num">100%</td><td class="num">'+DLT(tot-totL)+'</td><td class="num">'+DPC((tot-totL)/totL*100)+'</td><td class="num">–</td><td class="num">'+FMT(aopScoped())+'</td><td class="num">'+DPC((tot/(aopScoped()*pace)-1)*100)+'</td></tr></table></div>';
 
     h+='<h3>Who moved the number</h3><div class="contrib">';
     const deltas=D.channels.map(c=>({c, d:(cm[c]?.bql||0)-(cl[c]?.bql||0)})).sort((a,b)=>b.d-a.d);
@@ -491,7 +511,7 @@ function lrmSection(){
     for(const r of rows){
       h+='<div class="sbrow" style="grid-template-columns:112px 1fr 150px"><div class="sbk">'+r.c+'</div>'+
          '<div class="sbt"><div class="sbf now" style="width:'+(r.p/mx*100)+'%"></div></div>'+
-         '<div class="sbv num">'+r.p.toFixed(1)+'% <span class="'+cls(r.d)+'">'+PP(r.d)+'</span></div></div>';
+         '<div class="sbv num">'+r.p.toFixed(1)+'% '+DPP(r.d)+'</div></div>';
     }
     h+='</div>';
 
@@ -501,11 +521,11 @@ function lrmSection(){
       h+='<tr'+(r.d<0?' class="hi"':'')+'><td>'+r.c+'</td><td class="num">'+FMT(r.bql)+'</td>'+
          '<td class="num">'+FMT(r.lrm)+'</td><td class="num m">'+FMT(r.bql-r.lrm)+'</td>'+
          '<td class="num">'+r.p.toFixed(1)+'%</td><td class="num m">'+r.pl.toFixed(1)+'%</td>'+
-         '<td class="num '+cls(r.d)+'">'+PP(r.d)+'</td></tr>';
+         '<td class="num">'+DPP(r.d)+'</td></tr>';
     }
     h+='<tr class="tot"><td>Digital total</td><td class="num">'+FMT(m.bql)+'</td><td class="num">'+FMT(m.lrm)+'</td>'+
        '<td class="num">'+FMT(m.bql-m.lrm)+'</td><td class="num">'+m.pct.toFixed(1)+'%</td>'+
-       '<td class="num">'+l.pct.toFixed(1)+'%</td><td class="num '+cls(m.pct-l.pct)+'">'+PP(m.pct-l.pct)+'</td></tr>';
+       '<td class="num">'+l.pct.toFixed(1)+'%</td><td class="num">'+DPP(m.pct-l.pct)+'</td></tr>';
     h+='</table></div>';
   }
 
@@ -614,6 +634,21 @@ function deepDive(){
   if(false) h+='';
   else if(!ta) h+='<div class="note">This cluster has no AOP line in the business plan, so the AOP column is blank. MOP is unaffected.</div>';
 
+  /* leads delivered to LRM — Digital only */
+  {
+    const dm=lrmAgg(9,'Digital',S.city), dl=lrmAgg(8,'Digital',S.city);
+    h+='<h3>Leads delivered to LRM <span class="n">Digital only · '+S.city+'</span></h3>';
+    h+='<div class="tw"><table class="dt compact" style="min-width:520px">'+
+       '<tr><th>Measure</th><th>'+rangeLabel()+'</th><th>Aug '+S.from+'–'+S.to+'</th><th>Δ</th></tr>'+
+       '<tr><td>Digital BQL</td><td class="num">'+FMT(dm.bql)+'</td><td class="num m">'+FMT(dl.bql)+'</td><td class="num">'+DLT(dm.bql-dl.bql)+'</td></tr>'+
+       '<tr><td>Delivered to LRM</td><td class="num">'+FMT(dm.lrm)+'</td><td class="num m">'+FMT(dl.lrm)+'</td><td class="num">'+DLT(dm.lrm-dl.lrm)+'</td></tr>'+
+       '<tr><td>Not delivered</td><td class="num">'+FMT(dm.bql-dm.lrm)+'</td><td class="num m">'+FMT(dl.bql-dl.lrm)+'</td><td class="num">'+DLT((dm.bql-dm.lrm)-(dl.bql-dl.lrm))+'</td></tr>'+
+       '<tr class="tot"><td>BQL → LRM</td><td class="num">'+(dm.bql?dm.pct.toFixed(1)+'%':'–')+'</td>'+
+       '<td class="num">'+(dl.bql?dl.pct.toFixed(1)+'%':'–')+'</td>'+
+       '<td class="num">'+((dm.bql&&dl.bql)?DPP(dm.pct-dl.pct):'–')+'</td></tr></table></div>';
+    h+='<figcaption style="margin-top:8px">Digital only — the other channels reach the LRM without clearing bill qualification, so their ratio is not a conversion. Date filter applies; channel and sub-channel filters do not.</figcaption>';
+  }
+
   h+='<h3>Lead quality · '+S.city+'</h3>';
   h+=vBars(qualBy(()=>'all')['all'], 'Score distribution for this cluster under the current channel, sub-channel and date filters.');
   h+=lqMatrix('LQI by channel', r=>D.channels[r[3]], 0);
@@ -692,6 +727,14 @@ function quadSvg(rows){
 
 
 function tile(k,v,d,tone){ return '<div class="hero"><div class="k">'+k+'</div><div class="v num'+(tone?' '+tone:'')+'">'+v+'</div><div class="d num">'+d+'</div></div>'; }
+/* direction marker — pairs with the g/c colour classes so movement reads at a glance */
+function ARROW(x){ if(!isFinite(x)||x===0) return '<span class="ar f">–</span>'; return x>0 ? '<span class="ar g">▲</span>' : '<span class="ar c">▼</span>'; }
+/* signed number with arrow */
+function DLT(x){ return ARROW(x)+'<span class="'+cls(x)+'">'+FMT(Math.abs(x))+'</span>'; }
+/* signed percent with arrow */
+function DPC(x){ if(!isFinite(x)) return '<span class="ar f">–</span>'; return ARROW(x)+'<span class="'+cls(x)+'">'+PCT(Math.abs(x)).replace(/^[+−-]/,'')+'</span>'; }
+/* signed pp with arrow */
+function DPP(x){ if(!isFinite(x)) return '<span class="ar f">–</span>'; return ARROW(x)+'<span class="'+cls(x)+'">'+PP(Math.abs(x)).replace(/^[+−-]/,'')+'</span>'; }
 function chColor(i){ return [css('--accent'),css('--good'),css('--accent2'),css('--warn'),css('--cat2')][i%5]; }
 function bkColor(i){ return [css('--b1'),css('--b2'),css('--b3'),css('--b4'),css('--b5'),css('--b6')][i%6]; }
 
@@ -741,7 +784,7 @@ function vBars(q, caption){
   if(!q || (!q.m.tot && !q.l.tot)) return '<div class="empty">No scored BQL in this scope.</div>';
   const bs=D.buckets.map((b,i)=>({b, m:q.m.tot?q.m.b[i]/q.m.tot*100:0, l:q.l.tot?q.l.b[i]/q.l.tot*100:0, mc:q.m.b[i], lc:q.l.b[i]}));
   const top=Math.max(10, Math.ceil(Math.max(...bs.map(x=>Math.max(x.m,x.l)))/5)*5+5);
-  const W=760,H=300,L=52,R=742,T=16,B=232;
+  const W=760,H=196,L=46,R=746,T=12,B=146;
   const bw=(R-L)/bs.length, pad=bw*0.16, w=(bw-pad*2)/2;
   const py=v=>B-(v/top)*(B-T);
   let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Share of BQL by lead-score bucket, September against August.">';
@@ -753,25 +796,29 @@ function vBars(q, caption){
     const x0=L+i*bw+pad;
     s+='<rect x="'+x0+'" y="'+py(x.m)+'" width="'+w+'" height="'+(B-py(x.m))+'" fill="var(--accent)" rx="2"><title>'+x.b+' · Sep '+FMT(x.mc)+' ('+x.m.toFixed(1)+'%)</title></rect>';
     s+='<rect x="'+(x0+w+2)+'" y="'+py(x.l)+'" width="'+w+'" height="'+(B-py(x.l))+'" fill="var(--line2)" rx="2"><title>'+x.b+' · Aug '+FMT(x.lc)+' ('+x.l.toFixed(1)+'%)</title></rect>';
-    s+='<text x="'+(x0+w+1)+'" y="'+(B+18)+'" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="Archivo,sans-serif">'+x.b+'</text>';
-    if(x.m>=1.5) s+='<text x="'+(x0+w/2)+'" y="'+(py(x.m)-5)+'" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.m.toFixed(1)+'%</text>';
+    s+='<text x="'+(x0+w+1)+'" y="'+(B+16)+'" font-size="11.5" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="Archivo,sans-serif">'+x.b+'</text>';
+    /* value labels on both series */
+    if(x.m>=1.5) s+='<text x="'+(x0+w/2)+'" y="'+(py(x.m)-4)+'" font-size="10" font-weight="600" fill="var(--ink2)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.m.toFixed(1)+'%</text>';
+    if(x.l>=1.5) s+='<text x="'+(x0+w*1.5+2)+'" y="'+(py(x.l)-4)+'" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.l.toFixed(1)+'%</text>';
   });
   s+='<line x1="'+L+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
-  s+='<rect x="'+L+'" y="'+(H-26)+'" width="12" height="10" fill="var(--accent)" rx="2"/><text x="'+(L+18)+'" y="'+(H-17)+'" font-size="11.5" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">'+rangeLabel()+'</text>';
-  s+='<rect x="'+(L+140)+'" y="'+(H-26)+'" width="12" height="10" fill="var(--line2)" rx="2"/><text x="'+(L+158)+'" y="'+(H-17)+'" font-size="11.5" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">Aug '+S.from+'–'+S.to+'</text>';
+  s+='<rect x="'+L+'" y="'+(H-20)+'" width="11" height="9" fill="var(--accent)" rx="2"/><text x="'+(L+16)+'" y="'+(H-12)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">'+rangeLabel()+'</text>';
+  s+='<rect x="'+(L+130)+'" y="'+(H-20)+'" width="11" height="9" fill="var(--line2)" rx="2"/><text x="'+(L+146)+'" y="'+(H-12)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">Aug '+S.from+'–'+S.to+'</text>';
   s+='</svg>';
-  let t='<div class="tw" style="margin-top:12px"><table class="dt" style="min-width:520px"><tr><th>Bucket</th><th>MTD count</th><th>MTD %</th><th>LMTD count</th><th>LMTD %</th><th>Δ pp</th></tr>';
+  let t='<div class="tw" style="margin-top:10px"><table class="dt compact" style="min-width:480px"><tr><th>Bucket</th><th>MTD</th><th>MTD %</th><th>LMTD</th><th>LMTD %</th><th>Δ pp</th></tr>';
   bs.forEach(x=>{ const d=x.m-x.l;
-    t+='<tr><td>'+x.b+'</td><td class="num">'+FMT(x.mc)+'</td><td class="num">'+x.m.toFixed(1)+'%</td><td class="num m">'+FMT(x.lc)+'</td><td class="num m">'+x.l.toFixed(1)+'%</td><td class="num '+cls(d)+'">'+PP(d)+'</td></tr>'; });
+    t+='<tr><td>'+x.b+'</td><td class="num">'+FMT(x.mc)+'</td><td class="num">'+x.m.toFixed(1)+'%</td><td class="num m">'+FMT(x.lc)+'</td><td class="num m">'+x.l.toFixed(1)+'%</td><td class="num">'+DPP(d)+'</td></tr>'; });
   t+='<tr class="tot"><td>Total</td><td class="num">'+FMT(q.m.tot)+'</td><td class="num">—</td><td class="num">'+FMT(q.l.tot)+'</td><td class="num">—</td><td class="num">—</td></tr></table></div>';
-  return '<div class="chartbox">'+s+'</div>'+t+(caption?'<figcaption>'+caption+'</figcaption>':'');
+  return '<div class="chartbox" style="padding:10px 12px">'+s+'</div>'+t+(caption?'<figcaption>'+caption+'</figcaption>':'');
 }
 
 function dodTable(){
-  const sep=series(9), aug=series(8), L=D.LAST, from=Math.max(1,L-6);
+  const DAYS=10;
+  const sep=series(9), aug=series(8), L=D.LAST, from=Math.max(1,L-(DAYS-1));
+  const nD=L-from+1;
   const WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let sT=0,aT=0;
-  let t='<div class="tw"><table class="dt" style="min-width:560px"><tr><th>Date</th><th>MTD · Sep</th><th>LMTD · Aug</th><th>Δ</th><th>Δ%</th><th>Share of Sep 7d</th></tr>';
+  let t='<div class="tw"><table class="dt" style="min-width:560px"><tr><th>Date</th><th>MTD · Sep</th><th>LMTD · Aug</th><th>Δ</th><th>Δ%</th><th>Share of Sep '+nD+'d</th></tr>';
   for(let d=from; d<=L; d++){ sT+=sep[d]; aT+=aug[d]; }
   for(let d=from; d<=L; d++){
     const s=sep[d], a=aug[d], dd=s-a;
@@ -779,17 +826,17 @@ function dodTable(){
     t+='<tr'+((a && dd/a*100<=-20)?' class="hi"':'')+'>'+
        '<td>'+d+' <span class="m" style="font-weight:400">'+wdS+' / '+wdA+'</span></td>'+
        '<td class="num">'+FMT(s)+'</td><td class="num m">'+FMT(a)+'</td>'+
-       '<td class="num '+cls(dd)+'">'+FMT(dd)+'</td>'+
-       '<td class="num '+cls(dd)+'">'+(a?PCT(dd/a*100):'–')+'</td>'+
+       '<td class="num">'+DLT(dd)+'</td>'+
+       '<td class="num">'+(a?DPC(dd/a*100):'–')+'</td>'+
        '<td class="num m">'+(sT?(s/sT*100).toFixed(1):'–')+'%</td></tr>';
   }
   t+='<tr class="tot"><td>Sep '+from+'–'+L+'</td><td class="num">'+FMT(sT)+'</td><td class="num">'+FMT(aT)+'</td>'+
-     '<td class="num '+cls(sT-aT)+'">'+FMT(sT-aT)+'</td><td class="num '+cls(sT-aT)+'">'+(aT?PCT((sT-aT)/aT*100):'–')+'</td>'+
+     '<td class="num">'+DLT(sT-aT)+'</td><td class="num">'+(aT?DPC((sT-aT)/aT*100):'–')+'</td>'+
      '<td class="num">100%</td></tr>'+
-     '<tr><td class="m" style="font-weight:400">Daily average</td><td class="num">'+FMT(sT/7)+'</td><td class="num m">'+FMT(aT/7)+'</td>'+
-     '<td class="num '+cls(sT-aT)+'">'+FMT((sT-aT)/7)+'</td><td class="num '+cls(sT-aT)+'">'+(aT?PCT((sT-aT)/aT*100):'–')+'</td><td class="num m">–</td></tr>'+
+     '<tr><td class="m" style="font-weight:400">Daily average</td><td class="num">'+FMT(sT/nD)+'</td><td class="num m">'+FMT(aT/nD)+'</td>'+
+     '<td class="num">'+DLT((sT-aT)/nD)+'</td><td class="num">'+(aT?DPC((sT-aT)/aT*100):'–')+'</td><td class="num m">–</td></tr>'+
      '</table></div>';
-  t+='<figcaption style="margin-top:8px">Last 7 days of the month-to-date window against the same 7 dates in August. The second weekday on each row is August’s — where they differ, part of the gap is calendar, not performance. Rows shaded red are 20% or more below the same date last month.</figcaption>';
+  t+='<figcaption style="margin-top:8px">Last '+nD+' days of the month-to-date window against the same dates in August. The second weekday on each row is August’s — where they differ, part of the gap is calendar, not performance. Rows shaded red are 20% or more below the same date last month.</figcaption>';
   return t;
 }
 </script>
