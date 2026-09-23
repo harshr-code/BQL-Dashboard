@@ -186,7 +186,7 @@ let D=null, S={city:'all', ch:'all', sub:'all', from:1, to:99};
 
 function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
-fetch('dash.json').then(r=>r.json()).then(j=>{ D=j; boot(); })
+fetch('dash.json?v='+Date.now()).then(r=>r.json()).then(j=>{ D=j; boot(); })
   .catch(()=>{ document.getElementById('app').innerHTML='<div class="empty">Could not load data file.</div>'; });
 
 function boot(){
