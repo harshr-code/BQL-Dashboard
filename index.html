@@ -41,6 +41,30 @@
   .wrap{max-width:1060px; margin:0 auto; padding-inline:18px; padding-block:24px 56px;}
   .num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;}
   .c{color:var(--crit)} .w{color:var(--warn)} .g{color:var(--good)} .m{color:var(--muted)}
+/* ---- jump nav ---- */
+nav.jump{display:flex; flex-wrap:wrap; gap:6px; margin:16px 0 4px; padding:9px 11px; background:var(--surface); border:1px solid var(--line); border-radius:4px; position:sticky; top:0; z-index:20;}
+nav.jump a{font-family:Archivo,sans-serif; font-size:11.5px; font-weight:600; text-decoration:none; color:var(--ink2); padding:4px 9px; border-radius:3px; background:var(--bg); border:1px solid var(--line); white-space:nowrap;}
+nav.jump a:hover{background:var(--accent); color:#fff; border-color:var(--accent);}
+/* ---- insight cards ---- */
+section.insights{margin-top:18px}
+.icards{display:grid; grid-template-columns:repeat(auto-fit,minmax(255px,1fr)); gap:11px; margin-top:12px}
+.icard{border:1px solid var(--line); border-radius:5px; padding:13px 14px; background:var(--surface); border-top:3px solid var(--accent);}
+.icard.up{border-top-color:var(--good)}
+.icard.down{border-top-color:var(--crit)}
+.icard .ih{display:flex; align-items:center; gap:7px; margin-bottom:7px}
+.icard .idir{font-size:13px; font-weight:700}
+.icard.up .idir{color:var(--good)} .icard.down .idir{color:var(--crit)}
+.icard .it{font-family:Archivo,sans-serif; font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--muted)}
+.icard .iv{font-family:Archivo,sans-serif; font-size:25px; font-weight:700; line-height:1.05; color:var(--ink); font-variant-numeric:tabular-nums}
+.icard .is{font-size:11.5px; color:var(--muted); margin-top:3px}
+.icard .il{list-style:none; margin:10px 0 0; padding:9px 0 0; border-top:1px solid var(--line); font-size:12px; line-height:1.55; color:var(--ink2)}
+.icard .il li{margin-bottom:4px} .icard .il li:last-child{margin-bottom:0}
+.icard .il b{font-weight:600; color:var(--ink)}
+/* ---- colour ---- */
+h2{border-left:4px solid var(--accent); padding-left:10px}
+section.insights h2{border-left-color:var(--good)}
+.hero{border-top:3px solid var(--line2)}
+.hero .v.g{color:var(--good)} .hero .v.c{color:var(--crit)}
 .ar{font-size:0.82em; margin-right:2px; letter-spacing:0}
 .ar.g{color:var(--good)} .ar.c{color:var(--crit)} .ar.f{color:var(--muted)}
 details.fold{margin-top:14px; border:1px solid var(--line); border-radius:3px; background:var(--surface);}
@@ -308,8 +332,10 @@ function render(){
   document.getElementById('scope').textContent = scopeTxt;
 
   let h='';
+  h+=insights();
+  h+=navBar();
   /* ---- 1 INDIA / SCOPE HEADLINE ---- */
-  h+='<section style="margin-top:20px"><h2>1 · Headline <span class="n">'+scopeTxt+' · '+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</span></h2>';
+  h+='<section id="s-headline" style="margin-top:20px"><h2>1 · Headline <span class="n">'+scopeTxt+' · '+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</span></h2>';
   h+='<div class="heroes">';
   const mopV = S.sub!=='all' ? 0 : mopFor(S.city==='all'?null:S.city, S.ch==='all'?null:S.ch);
   h+=tile('BQL MTD', FMT(mtd.bql), FMT(mtd.leads)+' leads · '+(mtd.leads?(mtd.bql/mtd.leads*100).toFixed(1):'–')+'% qualify');
@@ -322,7 +348,8 @@ function render(){
       ? tile('AOP target', FMT(aop), FMT(aopPace)+' to date · '+(aopPace?DPC((mtd.bql/aopPace-1)*100):'–'), (mtd.bql>=aopPace)?'g':'c')
       : tile('AOP target', '–', S.sub!=='all' ? 'no AOP at sub-channel' : 'no AOP for this scope');
   h+='</div>';
-  if(S.ch==='all' || S.ch==='Others') h+='<div class="note m" style="margin-top:10px">MOP and AOP cover the four planned channels only. Others carries no plan, so plan comparisons on an all-channel view run slightly flattering.</div>';
+  h+='<figcaption style="margin-top:8px"><b>AOP target</b> is the full-month plan for this scope. <b>to date</b> prorates it to the '+rangeDays()+' days shown; the percentage is actual against that prorated figure — green means ahead of plan pace, red behind.</figcaption>';
+
 
   /* ---- DoD, collapsible ---- */
   h+='<details class="fold" open><summary>Daily BQL · Sep vs Aug<span class="n">last 10 days · click to collapse</span></summary><div class="foldbody">';
@@ -335,22 +362,27 @@ function render(){
   h+='<div class="note"><b>Last 7 days.</b> Sep '+(L-6)+'–'+L+' delivered <b>'+FMT(l7.bql)+'</b> BQL against <b>'+FMT(p7.bql)+'</b> for Aug '+(L-6)+'–'+L+' — '+PCT(d7)+', '+FMT(l7.bql-p7.bql)+' leads. Daily average '+FMT(l7.bql/7)+' vs '+FMT(p7.bql/7)+'.</div>';
   h+='</section>';
 
-  /* ---- 2 CHANNEL ---- */
-  if(S.ch==='all'){
+  /* ---- 2 LEAD SENT TO LRM — Digital only ---- */
+  if(S.ch==='Digital') h+=lrmSection();
+
+  /* ---- 3 CHANNEL ---- */
+  {
     const cm=byKey(r=>D.channels[r[2]], 9), cl=byKey(r=>D.channels[r[2]], 8);
     const tot=Object.values(cm).reduce((a,b)=>a+b.bql,0), totL=Object.values(cl).reduce((a,b)=>a+b.bql,0);
-    h+=lrmSection();
 
-  h+='<section><h2>3 · Channels <span class="n">volume, mix and contribution</span></h2>';
-    h+='<p class="lede">Mix shows where inflow is concentrated; contribution shows who moved the number.</p>';
+  h+='<section id="s-channels"><h2>3 · Channels <span class="n">volume, mix and movement</span></h2>';
+    h+='<p class="lede">Mix shows where inflow is concentrated; the bridge below shows exactly which channel moved the number against last month.</p>';
+    if(S.ch==='all'){
     h+='<div class="mixrow"><div class="ml">MTD</div><div class="mixbar">'+D.channels.map((c,i)=>{
       const v=(cm[c]?.bql||0), p=tot?v/tot*100:0; if(p<0.4) return '';
-      return '<div class="mixseg" style="width:'+p+'%;background:'+chColor(i)+'">'+(p>7?c+' ':'')+p.toFixed(1)+'%</div>';}).join('')+'</div></div>';
+      return '<div class="mixseg" style="width:'+p+'%;background:'+chColor(i)+'">'+p.toFixed(1)+'%</div>';}).join('')+'</div></div>';
     h+='<div class="mixrow"><div class="ml">LMTD</div><div class="mixbar" style="opacity:.6">'+D.channels.map((c,i)=>{
       const v=(cl[c]?.bql||0), p=totL?v/totL*100:0; if(p<0.4) return '';
       return '<div class="mixseg" style="width:'+p+'%;background:'+chColor(i)+'">'+(p>7?p.toFixed(1)+'%':'')+'</div>';}).join('')+'</div></div>';
     h+='<div class="keyrow">'+D.channels.map((c,i)=>'<span><i style="background:'+chColor(i)+'"></i>'+c+'</span>').join('')+'</div>';
+    }
 
+    if(S.ch==='all'){
     h+='<h3>Channel detail</h3><div class="tw"><table class="dt" style="min-width:760px"><tr><th>Channel</th><th>MTD</th><th>Mix</th><th>LMTD</th><th>Mix</th><th>Δ</th><th>Δ%</th><th>Δ mix</th><th>AOP</th><th>vs pace</th></tr>';
     for(const c of D.channels){
       const v=cm[c]?.bql||0, lv=cl[c]?.bql||0, a=aopFor(S.city==='all'?null:S.city, c), exp=a*pace;
@@ -361,18 +393,10 @@ function render(){
          '<td class="num m">'+(a?FMT(a):'–')+'</td><td class="num">'+(a?DPC((v/exp-1)*100):'–')+'</td></tr>';
     }
     h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(tot)+'</td><td class="num">100%</td><td class="num">'+FMT(totL)+'</td><td class="num">100%</td><td class="num">'+DLT(tot-totL)+'</td><td class="num">'+DPC((tot-totL)/totL*100)+'</td><td class="num">–</td><td class="num">'+FMT(aopScoped())+'</td><td class="num">'+DPC((tot/(aopScoped()*pace)-1)*100)+'</td></tr></table></div>';
-
-    h+='<h3>Who moved the number</h3><div class="contrib">';
-    const deltas=D.channels.map(c=>({c, d:(cm[c]?.bql||0)-(cl[c]?.bql||0)})).sort((a,b)=>b.d-a.d);
-    const mx=Math.max(...deltas.map(x=>Math.abs(x.d)),1), zero=45;
-    for(const x of deltas){
-      const w=Math.abs(x.d)/mx*45;
-      h+='<div class="cr"><div class="cl2">'+x.c+'</div><div class="ctrack"><div class="czero" style="left:'+zero+'%"></div>'+
-         '<div class="cbar '+(x.d>=0?'pos':'neg')+'" style="left:'+(x.d>=0?zero:zero-w)+'%;width:'+w+'%"></div></div>'+
-         '<div class="cv2 num '+cls(x.d)+'">'+FMT(x.d)+'</div></div>';
     }
-    h+='<div class="cr" style="border-top:1px solid var(--line2);padding-top:6px;margin-top:3px"><div class="cl2">Net</div><div class="ctrack" style="background:transparent"></div><div class="cv2 num '+cls(tot-totL)+'">'+FMT(tot-totL)+'</div></div>';
-    h+='</div></section>';
+
+    h+=bridge(totL, tot);
+    h+='</section>';
   }
 
   /* ---- 3 CITIES ---- */
@@ -383,7 +407,7 @@ function render(){
       const v=km[c]?.bql||0, lv=kl[c]?.bql||0, a=aopFor(c, S.ch==='all'?null:S.ch), mo=mOK?mopFor(c, S.ch==='all'?null:S.ch):0;
       return {c, v, lv, d:v-lv, dp:lv?(v-lv)/lv*100:NaN, a, mo, mp:mo?(v/mo-1)*100:NaN, ap:a?v/a*100:NaN};
     }).sort((a,b)=>a.d-b.d);
-    h+='<section><h2>4 · Cities <span class="n">'+(S.ch==='all'?'all channels':S.ch)+(S.sub==='all'?'':' · '+S.sub)+'</span></h2>';
+    h+='<section id="s-cities"><h2>4 · Cities <span class="n">'+(S.ch==='all'?'all channels':S.ch)+(S.sub==='all'?'':' · '+S.sub)+'</span></h2>';
     h+='<p class="lede">Ranked by leads gained or lost against the same span last month. Pick a city above to drive the whole page.</p>';
     h+=quadSvg(rows);
     h+='<p style="font-size:12px;color:var(--muted);margin:0 0 8px">Click any cluster to open its deep dive.</p>';
@@ -427,7 +451,7 @@ function render(){
   }
 
   /* ---- 4 LEAD QUALITY ---- */
-  h+='<section><h2>5 · Lead quality <span class="n">LQI buckets</span></h2>';
+  h+='<section id="s-quality"><h2>5 · Lead quality <span class="n">LQI buckets</span></h2>';
   h+='<p class="lede">BQL-weighted score distribution. Buckets: 0–2, &gt;2–5, &gt;5–7, &gt;7–9, &gt;9–10. Responds to every filter including the date range.</p>';
   h+='<div class="inlinefilters"><span class="ifl">Showing</span>'+
      '<b>'+(S.city==='all'?'All 23 clusters':S.city)+'</b><span class="ifl">·</span>'+
@@ -488,34 +512,26 @@ function lrmSection(){
   const scope = S.city==='all' ? 'All 23 clusters' : S.city;
   const m = lrmAgg(9,'Digital',city), l = lrmAgg(8,'Digital',city);
 
-  let h='<section><h2>2 · Lead sent to LRM <span class="n">Digital · '+scope+' · '+rangeLabel()+'</span></h2>';
-  h+='<p class="lede">BQL to Lead-sent-to-LRM, read on Digital only. The other three channels are carried in the data but their leads reach the LRM without clearing bill qualification first, so their ratio runs above 100% and is not a conversion. City and date filters above apply; the channel filter does not — this section is fixed to Digital.</p>';
+  let h='<section id="s-lrm"><h2>2 · Lead sent to LRM <span class="n">Digital · '+scope+' · '+rangeLabel()+'</span></h2>';
+  h+='<p class="lede">BQL to Lead-sent-to-LRM for the Digital channel. City and date filters above apply.</p>';
 
   h+='<div class="heroes">';
-  h+=tile('Digital BQL', FMT(m.bql), FMT(m.bql-l.bql)+' vs LMTD '+FMT(l.bql), m.bql>=l.bql?'g':'c');
-  h+=tile('Sent to LRM', FMT(m.lrm), FMT(m.lrm-l.lrm)+' vs LMTD '+FMT(l.lrm), m.lrm>=l.lrm?'g':'c');
-  h+=tile('BQL → LRM', m.bql?m.pct.toFixed(1)+'%':'–', l.bql?PP(m.pct-l.pct)+' vs LMTD '+l.pct.toFixed(1)+'%':'–', m.pct>=l.pct?'g':'c');
+  h+=tile('Digital BQL', FMT(m.bql), DLT(m.bql-l.bql)+' vs LMTD '+FMT(l.bql), m.bql>=l.bql?'g':'c');
+  h+=tile('Sent to LRM', FMT(m.lrm), DLT(m.lrm-l.lrm)+' vs LMTD '+FMT(l.lrm), m.lrm>=l.lrm?'g':'c');
+  h+=tile('BQL → LRM', m.bql?m.pct.toFixed(1)+'%':'–', l.bql?DPP(m.pct-l.pct)+' vs LMTD '+l.pct.toFixed(1)+'%':'–', m.pct>=l.pct?'g':'c');
   h+=tile('Not sent', FMT(m.bql-m.lrm), (m.bql?(100-m.pct).toFixed(1):'–')+'% of Digital BQL', (m.pct>=l.pct)?'g':'c');
   h+='</div>';
 
-  /* per-cluster, Digital */
+  /* one daily chart, following the city filter */
+  h+=lrmDaily(city, scope);
+
+  /* citywise movement table */
   if(S.city==='all'){
     const rows=D.cities.map(c=>{
       const a=lrmAgg(9,'Digital',c), b=lrmAgg(8,'Digital',c);
       return {c, bql:a.bql, lrm:a.lrm, p:a.pct, pl:b.pct, d:a.pct-b.pct};
-    }).filter(r=>r.bql>0).sort((a,b)=>a.p-b.p);
-
-    const mx=Math.max(...rows.map(r=>r.p),1);
-    h+='<h3>BQL → LRM by cluster <span class="n">lowest first</span></h3>';
-    h+='<div class="chartbox">';
-    for(const r of rows){
-      h+='<div class="sbrow" style="grid-template-columns:112px 1fr 150px"><div class="sbk">'+r.c+'</div>'+
-         '<div class="sbt"><div class="sbf now" style="width:'+(r.p/mx*100)+'%"></div></div>'+
-         '<div class="sbv num">'+r.p.toFixed(1)+'% '+DPP(r.d)+'</div></div>';
-    }
-    h+='</div>';
-
-    h+='<h3>Cluster detail</h3><div class="tw"><table class="dt" style="min-width:680px">'+
+    }).filter(r=>r.bql>0).sort((a,b)=>a.d-b.d);
+    h+='<h3>Movement by cluster <span class="n">steepest fall first</span></h3><div class="tw"><table class="dt compact" style="min-width:660px">'+
        '<tr><th>Cluster</th><th>Digital BQL</th><th>Sent to LRM</th><th>Not sent</th><th>BQL→LRM</th><th>LMTD</th><th>Δ pp</th></tr>';
     for(const r of rows){
       h+='<tr'+(r.d<0?' class="hi"':'')+'><td>'+r.c+'</td><td class="num">'+FMT(r.bql)+'</td>'+
@@ -528,27 +544,51 @@ function lrmSection(){
        '<td class="num">'+l.pct.toFixed(1)+'%</td><td class="num">'+DPP(m.pct-l.pct)+'</td></tr>';
     h+='</table></div>';
   }
-
-  /* all channels, flagged */
-  h+='<h3>All channels <span class="n">reference only — not a conversion outside Digital</span></h3>';
-  h+='<div class="tw"><table class="dt" style="min-width:560px">'+
-     '<tr><th>Channel</th><th>BQL</th><th>Sent to LRM</th><th>Ratio</th><th>Read?</th></tr>';
-  for(const c of D.channels){
-    const a=lrmAgg(9,c,city);
-    const ok = c==='Digital';
-    h+='<tr'+(ok?' class="hi"':'')+'><td>'+c+'</td><td class="num">'+FMT(a.bql)+'</td>'+
-       '<td class="num">'+FMT(a.lrm)+'</td><td class="num">'+(a.bql?a.pct.toFixed(1)+'%':'–')+'</td>'+
-       '<td class="m">'+(ok?'tracked':'not tracked')+'</td></tr>';
-  }
-  h+='</table></div>';
   h+='</section>';
   return h;
+}
+
+/* daily BQL vs LRM for the current city scope — one chart, follows the filter */
+function lrmDaily(city, scope){
+  const L=D.LAST, from=Math.max(1,L-13);
+  const days=[];
+  for(let d=from; d<=L; d++){
+    let bql=0, lrm=0;
+    for(const r of D.daily){
+      if(D.channels[r[2]]!=='Digital') continue;
+      if(city && D.cities[r[1]]!==city) continue;
+      if(D.mon[r[0]]!==9 || D.day[r[0]]!==d) continue;
+      bql+=r[5]; lrm+=r[6];
+    }
+    days.push({d, bql, lrm, p: bql?lrm/bql*100:0});
+  }
+  if(!days.some(x=>x.bql>0)) return '<div class="empty">No Digital BQL in this scope.</div>';
+  const W=880,H=250,Lf=44,R=872,T=18,B=188;
+  const bw=(R-Lf)/days.length, pad=bw*0.18, w=(bw-pad*2)/2;
+  const top=Math.max(...days.map(x=>x.bql),1)*1.18;
+  const py=v=>B-(v/top)*(B-T);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Daily Digital BQL and leads sent to LRM.">';
+  for(let g=0; g<=4; g++){ const v=top*g/4; s+='<line x1="'+Lf+'" y1="'+py(v)+'" x2="'+R+'" y2="'+py(v)+'" stroke="var(--line)"/>'+
+    '<text x="'+(Lf-7)+'" y="'+(py(v)+4)+'" font-size="10" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Sans,sans-serif">'+FMT(v)+'</text>'; }
+  days.forEach((x,i)=>{
+    const x0=Lf+i*bw+pad;
+    s+='<rect x="'+x0+'" y="'+py(x.bql)+'" width="'+w+'" height="'+(B-py(x.bql))+'" fill="var(--accent)" rx="2"><title>Sep '+x.d+' BQL '+FMT(x.bql)+'</title></rect>';
+    s+='<rect x="'+(x0+w+2)+'" y="'+py(x.lrm)+'" width="'+w+'" height="'+(B-py(x.lrm))+'" fill="var(--good)" rx="2"><title>Sep '+x.d+' LRM '+FMT(x.lrm)+'</title></rect>';
+    s+='<text x="'+(x0+w+1)+'" y="'+(B+15)+'" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.d+'</text>';
+    s+='<text x="'+(x0+w+1)+'" y="'+(py(x.bql)-6)+'" font-size="9.5" font-weight="600" fill="var(--ink2)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.p.toFixed(0)+'%</text>';
+  });
+  s+='<line x1="'+Lf+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
+  s+='<rect x="'+Lf+'" y="'+(H-22)+'" width="11" height="9" fill="var(--accent)" rx="2"/><text x="'+(Lf+16)+'" y="'+(H-14)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">Digital BQL</text>';
+  s+='<rect x="'+(Lf+120)+'" y="'+(H-22)+'" width="11" height="9" fill="var(--good)" rx="2"/><text x="'+(Lf+136)+'" y="'+(H-14)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">Sent to LRM</text>';
+  s+='<text x="'+(Lf+250)+'" y="'+(H-14)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">label above each pair = BQL→LRM %</text>';
+  s+='</svg>';
+  return '<h3>Daily · '+scope+'</h3><div class="chartbox">'+s+'</div>';
 }
 
 function refSection(){
   const m=refSplit(9), l=refSplit(8);
   const scope = S.city==='all' ? 'All 23 clusters' : S.city;
-  let h='<section><h2>6 · SC-generated referrals <span class="n">'+scope+' · '+rangeLabel()+'</span></h2>';
+  let h='<section id="s-referral"><h2>6 · SC-generated referrals <span class="n">'+scope+' · '+rangeLabel()+'</span></h2>';
   h+='<p class="lede">Referral BQL split by whether a Solar Consultant sourced it. Sales sub-source is SC-generated; everything else in the Referral channel is not. BTL-sourced referrals are excluded here because they now sit under BTL.</p>';
   h+='<div class="inlinefilters"><span class="ifl">Showing</span><b>'+scope+'</b><span class="ifl">·</span><b>'+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</b><span class="ifl" style="margin-left:auto">City and date filters at the top drive this section</span></div>';
 
@@ -559,22 +599,14 @@ function refSection(){
   h+=tile('Total referral', FMT(m.tot), (l.tot?PCT((m.tot-l.tot)/l.tot*100):'–')+' vs LMTD', m.tot>=l.tot?'g':'c');
   h+='</div>';
 
-  /* per-city paired bars */
+  /* per-city table source */
   const rows=D.cities.map(c=>{
     const a=refSplit(9,c), b=refSplit(8,c);
     return {c, s:a.sales, sl:b.sales, o:a.other, ol:b.other, d:a.sales-b.sales};
   }).filter(r=>r.s>0||r.sl>0).sort((a,b)=>b.s-a.s);
-  if(rows.length && S.city==='all'){
-    const mx=Math.max(...rows.map(r=>Math.max(r.s,r.sl)),1);
-    h+='<h3>SC-generated referrals by cluster</h3>';
-    h+='<div class="chartbox"><div class="keyrow" style="margin:0 0 10px"><span><i style="background:var(--accent)"></i>'+rangeLabel()+'</span><span><i style="background:var(--line2)"></i>Aug '+S.from+'–'+S.to+'</span></div>';
-    for(const r of rows){
-      h+='<div class="sbrow" style="grid-template-columns:112px 1fr 128px"><div class="sbk">'+r.c+'</div>'+
-         '<div class="sbt"><div class="sbf now" style="width:'+(r.s/mx*100)+'%"></div>'+
-         '<div class="sbf was" style="width:'+(r.sl/mx*100)+'%"></div></div>'+
-         '<div class="sbv num">'+FMT(r.s)+' <span class="'+cls(r.d)+'">'+(r.sl?PCT(r.d/r.sl*100):'new')+'</span></div></div>';
-    }
-    h+='</div>';
+  /* chart only when a single city is in scope — an all-cluster bar stack is unreadable */
+  if(S.city!=='all'){
+    h+=refCityBars(m, l, S.city);
   }
 
   h+='<h3>Split by cluster</h3><div class="tw"><table class="dt" style="min-width:700px">'+
@@ -602,7 +634,7 @@ function refSection(){
 /* ---- city deep dive ---- */
 function deepDive(){
   const pace=rangeDays()/30;
-  let h='<section><h2>7 · '+S.city+' deep dive <span class="n">'+rangeLabel()+'</span></h2>';
+  let h='<section id="s-deep"><h2>7 · '+S.city+' deep dive <span class="n">'+rangeLabel()+'</span></h2>';
   h+='<p class="lede">Everything for this cluster — channel breakup against both benchmarks, then lead quality by channel and by sub-channel. Channel, sub-channel and date filters above all apply here.</p>';
 
   const keep={ch:S.ch, sub:S.sub};
@@ -779,6 +811,216 @@ function mopFor(city, ch){
 }
 function mopOk(){ return true; }
 
+/* ---- auto-generated insight block ----
+   Mirrors the Daily Sales Report house style: direction, the number, the movement,
+   then named clusters with the shortfall quantified. Derived, not written. */
+function insights(){
+  const L=D.LAST, pace=rangeDays()/30;
+  const mtd=totals(9), lmtd=totals(8);
+  const mopV = mopFor(S.city==='all'?null:S.city, S.ch==='all'?null:S.ch);
+  const cards=[];
+
+  /* 1 — headline vs plan */
+  {
+    const dp = lmtd.bql ? (mtd.bql-lmtd.bql)/lmtd.bql*100 : NaN;
+    const body=[];
+    if(mopV>0) body.push('<b>'+FMT(mtd.bql)+' / '+FMT(mopV)+'</b> · '+(mtd.bql/mopV*100).toFixed(1)+'% of MOP · Δ '+(mtd.bql>=mopV?'+':'−')+FMT(Math.abs(mtd.bql-mopV)));
+    body.push('LMTD '+FMT(lmtd.bql)+' → '+FMT(mtd.bql)+', '+(isFinite(dp)?DPC(dp):'–')+'. Daily run rate '+FMT(mtd.bql/rangeDays())+' vs '+FMT(lmtd.bql/rangeDays())+'.');
+    cards.push({t:'BQL · '+(S.ch==='all'?'overall':S.ch), dir:(mtd.bql>=lmtd.bql?1:-1),
+      v:FMT(mtd.bql), sub:(isFinite(dp)?PCT(dp):'')+' vs LMTD', body});
+  }
+
+  /* 2 — clusters driving the decline */
+  if(S.city==='all'){
+    const km=byKey(r=>D.cities[r[1]],9), kl=byKey(r=>D.cities[r[1]],8);
+    const losers=D.cities.map(c=>({c, v:km[c]?.bql||0, lv:kl[c]?.bql||0}))
+      .map(x=>({...x, d:x.v-x.lv})).filter(x=>x.d<0).sort((a,b)=>a.d-b.d);
+    const tot=losers.reduce((a,b)=>a+b.d,0);
+    const body=[];
+    if(losers.length){
+      let cum=0; const named=[];
+      for(const x of losers){ named.push(x); cum+=x.d; if(Math.abs(cum)>=Math.abs(tot)*0.8) break; }
+      named.slice(0,4).forEach(x=>body.push('<b>'+x.c+'</b> — '+FMT(x.v)+' vs '+FMT(x.lv)+' LMTD ('+PCT(x.d/x.lv*100)+'), short '+FMT(Math.abs(x.d))+'.'));
+      body.push('<span class="m">'+named.length+' of '+losers.length+' declining clusters carry 80% of the loss.</span>');
+    } else body.push('No cluster is below its own LMTD in this scope.');
+    cards.push({t:'Clusters losing BQL', dir:losers.length?-1:1,
+      v:FMT(Math.abs(tot)), sub:losers.length+' clusters below LMTD', body});
+  }
+
+  /* 3 — channel that moved it most */
+  {
+    const cm=byKey(r=>D.channels[r[2]],9), cl=byKey(r=>D.channels[r[2]],8);
+    const mv=D.channels.map(c=>({c, d:(cm[c]?.bql||0)-(cl[c]?.bql||0), v:cm[c]?.bql||0, lv:cl[c]?.bql||0}))
+      .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+    const body=mv.slice(0,4).map(x=>'<b>'+x.c+'</b> — '+FMT(x.v)+' vs '+FMT(x.lv)+', '+(x.d>=0?'+':'−')+FMT(Math.abs(x.d))+(x.lv?' ('+PCT(x.d/x.lv*100)+')':'')+'.');
+    const top=mv[0]||{c:'–',d:0};
+    cards.push({t:'Channel movement', dir:top.d>=0?1:-1, v:(top.d>=0?'+':'−')+FMT(Math.abs(top.d)),
+      sub:top.c+' moved most', body});
+  }
+
+  /* 4 — Digital BQL to LRM */
+  {
+    const city=S.city==='all'?null:S.city;
+    const a=lrmAgg(9,'Digital',city), b=lrmAgg(8,'Digital',city);
+    if(a.bql){
+      const body=['<b>'+FMT(a.lrm)+'</b> of '+FMT(a.bql)+' Digital BQL reached the LRM. '+FMT(a.bql-a.lrm)+' did not.',
+                  'LMTD '+b.pct.toFixed(1)+'% → '+a.pct.toFixed(1)+'%.'];
+      if(S.city==='all'){
+        const worst=D.cities.map(c=>{const x=lrmAgg(9,'Digital',c), y=lrmAgg(8,'Digital',c);
+          return {c, p:x.pct, d:x.pct-y.pct, bql:x.bql};}).filter(x=>x.bql>200).sort((x,y)=>x.d-y.d).slice(0,3);
+        worst.forEach(x=>body.push('<b>'+x.c+'</b> — '+x.p.toFixed(1)+'% ('+PP(x.d)+' vs LMTD) on '+FMT(x.bql)+' BQL.'));
+      }
+      cards.push({t:'Digital → LRM', dir:a.pct>=b.pct?1:-1, v:a.pct.toFixed(1)+'%',
+        sub:PP(a.pct-b.pct)+' vs LMTD', body});
+    }
+  }
+
+  /* 5 — lead quality */
+  {
+    const q=qualStats();
+    if(q.bM){
+      cards.push({t:'Lead quality', dir:q.pM>=q.pL?1:-1, v:q.pM.toFixed(1)+'%', sub:'premium 7+ share, '+PP(q.pM-q.pL)+' vs LMTD',
+        body:['Average score '+q.aM.toFixed(2)+' vs '+q.aL.toFixed(2)+' LMTD.',
+              'Premium count '+FMT(q.pcM)+' vs '+FMT(q.pcL)+', '+(q.pcM>=q.pcL?'+':'−')+FMT(Math.abs(q.pcM-q.pcL))+'.']});
+    }
+  }
+
+  let h='<section id="s-insights" class="insights"><h2>Daily insights <span class="n">auto-generated · '+scopeLine()+' · '+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</span></h2>';
+  h+='<div class="icards">';
+  for(const c of cards){
+    h+='<div class="icard '+(c.dir>=0?'up':'down')+'">'+
+       '<div class="ih"><span class="idir">'+(c.dir>=0?'▲':'▼')+'</span><span class="it">'+c.t+'</span></div>'+
+       '<div class="iv">'+c.v+'</div><div class="is">'+c.sub+'</div>'+
+       '<ul class="il">'+c.body.map(b=>'<li>'+b+'</li>').join('')+'</ul></div>';
+  }
+  h+='</div></section>';
+  return h;
+}
+/* ---- jump nav ---- */
+function navBar(){
+  const items=[['s-insights','Insights'],['s-headline','1 · Headline']];
+  if(S.ch==='Digital') items.push(['s-lrm','2 · Lead sent to LRM']);
+  items.push(['s-channels','3 · Channels']);
+  if(S.city==='all') items.push(['s-cities','4 · Cities']);
+  items.push(['s-quality','5 · Lead quality']);
+  items.push(['s-referral','6 · SC referrals']);
+  if(S.city!=='all') items.push(['s-deep','7 · '+S.city+' deep dive']);
+  return '<nav class="jump">'+items.map(x=>'<a href="#'+x[0]+'">'+x[1]+'</a>').join('')+'</nav>';
+}
+function scopeLine(){
+  return [S.city==='all'?'All 23 clusters':S.city, S.ch==='all'?'all channels':S.ch, S.sub==='all'?null:S.sub].filter(Boolean).join(' · ');
+}
+/* ---- SC referral, single city: vertical paired bars ---- */
+function refCityBars(m, l, city){
+  const g=[{k:'SC-generated', now:m.sales, was:l.sales},
+           {k:'Other referral', now:m.other, was:l.other},
+           {k:'Total referral', now:m.tot, was:l.tot}];
+  const top=Math.max(...g.map(x=>Math.max(x.now,x.was)),1)*1.2;
+  const W=620,H=250,Lf=48,R=604,T=18,B=188;
+  const bw=(R-Lf)/g.length, pad=bw*0.22, w=(bw-pad*2)/2;
+  const py=v=>B-(v/top)*(B-T);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Referral split for '+city+', this period against last month.">';
+  for(let i=0;i<=4;i++){ const v=top*i/4;
+    s+='<line x1="'+Lf+'" y1="'+py(v)+'" x2="'+R+'" y2="'+py(v)+'" stroke="var(--line)"/>'+
+       '<text x="'+(Lf-7)+'" y="'+(py(v)+4)+'" font-size="10" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Sans,sans-serif">'+FMT(v)+'</text>'; }
+  g.forEach((x,i)=>{
+    const x0=Lf+i*bw+pad, d=x.now-x.was;
+    s+='<rect x="'+x0+'" y="'+py(x.now)+'" width="'+w+'" height="'+(B-py(x.now))+'" fill="var(--accent)" rx="2"><title>'+x.k+' '+rangeLabel()+' '+FMT(x.now)+'</title></rect>';
+    s+='<rect x="'+(x0+w+3)+'" y="'+py(x.was)+'" width="'+w+'" height="'+(B-py(x.was))+'" fill="var(--line2)" rx="2"><title>'+x.k+' LMTD '+FMT(x.was)+'</title></rect>';
+    s+='<text x="'+(x0+w/2)+'" y="'+(py(x.now)-6)+'" font-size="11" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+FMT(x.now)+'</text>';
+    s+='<text x="'+(x0+w*1.5+3)+'" y="'+(py(x.was)-6)+'" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+FMT(x.was)+'</text>';
+    s+='<text x="'+(x0+w+1)+'" y="'+(B+16)+'" font-size="11.5" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="Archivo,sans-serif">'+x.k+'</text>';
+    s+='<text x="'+(x0+w+1)+'" y="'+(B+31)+'" font-size="10" fill="'+(d>=0?'var(--good)':'var(--crit)')+'" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+(d>=0?'+':'−')+FMT(Math.abs(d))+'</text>';
+  });
+  s+='<line x1="'+Lf+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
+  s+='<rect x="'+Lf+'" y="'+(H-16)+'" width="11" height="9" fill="var(--accent)" rx="2"/><text x="'+(Lf+16)+'" y="'+(H-8)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">'+rangeLabel()+'</text>';
+  s+='<rect x="'+(Lf+120)+'" y="'+(H-16)+'" width="11" height="9" fill="var(--line2)" rx="2"/><text x="'+(Lf+136)+'" y="'+(H-8)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">Aug '+S.from+'–'+S.to+'</text>';
+  s+='</svg>';
+  return '<h3>Referral split · '+city+'</h3><div class="chartbox">'+s+'</div>';
+}
+/* ---- BQL movement bridge, LMTD -> MTD ----
+   Keyed by channel on an all-channel view, by sub-channel once a channel is picked,
+   so the same waterfall answers "which channel moved it" and "which sub-channel moved it". */
+function bridge(startV, endV){
+  const byCh = S.ch==='all';
+  const keyFn = byCh ? (r=>D.channels[r[2]]) : (r=>D.subs[r[3]]);
+  const m=byKey(keyFn,9), l=byKey(keyFn,8);
+  const names=[...new Set([...Object.keys(m),...Object.keys(l)])];
+  let steps=names.map(n=>({n, d:(m[n]?.bql||0)-(l[n]?.bql||0)})).filter(x=>x.d!==0);
+  steps.sort((a,b)=>b.d-a.d);
+  /* keep the page readable — tail beyond 8 rolls into one bar */
+  if(steps.length>8){
+    const head=steps.slice(0,7), tail=steps.slice(7);
+    const t=tail.reduce((a,b)=>a+b.d,0);
+    steps=head.concat([{n:'All other ('+tail.length+')', d:t, roll:true}]);
+    steps.sort((a,b)=>b.d-a.d);
+  }
+  if(!steps.length) return '<h3>BQL movement</h3><div class="empty">No movement to bridge in this scope.</div>';
+
+  /* running positions */
+  let run=startV;
+  const bars=steps.map(s=>{ const from=run; run+=s.d; return {...s, from, to:run}; });
+  const lo=Math.min(startV, endV, ...bars.map(b=>Math.min(b.from,b.to)));
+  const hi=Math.max(startV, endV, ...bars.map(b=>Math.max(b.from,b.to)));
+  const span=Math.max(hi-lo,1), pad=span*0.12;
+  const yMin=Math.max(0, lo-pad), yMax=hi+pad, yS=Math.max(yMax-yMin,1);
+
+  const n=bars.length+2;
+  const W=880, H=300, L=8, R=872, T=26, B=232;
+  const bw=(R-L)/n, gap=bw*0.24, w=bw-gap*2;
+  const py=v=>B-((v-yMin)/yS)*(B-T);
+  const label=(x,y,t,cl,sz)=>'<text x="'+x+'" y="'+y+'" font-size="'+(sz||10.5)+'" font-weight="600" fill="'+cl+'" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+t+'</text>';
+
+  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="BQL movement from last month to date, bridged by '+(byCh?'channel':'sub-channel')+'.">';
+  s+='<line x1="'+L+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
+
+  /* opening */
+  let x=L+gap;
+  s+='<rect x="'+x+'" y="'+py(startV)+'" width="'+w+'" height="'+(B-py(startV))+'" fill="var(--ink2)" rx="2"><title>LMTD '+FMT(startV)+'</title></rect>';
+  s+=label(x+w/2, py(startV)-7, FMT(startV), 'var(--ink)', 11.5);
+  s+=label(x+w/2, B+16, 'LMTD', 'var(--muted)');
+  let prevX=x+w, prevY=py(startV);
+
+  bars.forEach(b=>{
+    x+=bw;
+    const up=b.d>=0;
+    const y0=py(Math.max(b.from,b.to)), y1=py(Math.min(b.from,b.to));
+    const col= b.roll ? 'var(--muted)' : (up?'var(--good)':'var(--crit)');
+    s+='<line x1="'+prevX+'" y1="'+prevY+'" x2="'+x+'" y2="'+prevY+'" stroke="var(--line2)" stroke-dasharray="2 2"/>';
+    s+='<rect x="'+x+'" y="'+y0+'" width="'+w+'" height="'+Math.max(y1-y0,1.5)+'" fill="'+col+'" rx="2"><title>'+b.n+' '+(up?'+':'')+FMT(b.d)+'</title></rect>';
+    s+=label(x+w/2, (up?y0-7:y1+14), (up?'+':'−')+FMT(Math.abs(b.d)), col, 11);
+    const short = b.n.length>13 ? b.n.slice(0,12)+'…' : b.n;
+    s+='<text x="'+(x+w/2)+'" y="'+(B+16)+'" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif"><title>'+b.n+'</title>'+short+'</text>';
+    prevX=x+w; prevY=py(b.to);
+  });
+
+  /* closing */
+  x+=bw;
+  s+='<line x1="'+prevX+'" y1="'+prevY+'" x2="'+x+'" y2="'+prevY+'" stroke="var(--line2)" stroke-dasharray="2 2"/>';
+  s+='<rect x="'+x+'" y="'+py(endV)+'" width="'+w+'" height="'+(B-py(endV))+'" fill="var(--accent)" rx="2"><title>MTD '+FMT(endV)+'</title></rect>';
+  s+=label(x+w/2, py(endV)-7, FMT(endV), 'var(--ink)', 11.5);
+  s+=label(x+w/2, B+16, rangeLabel(), 'var(--muted)');
+
+  const net=endV-startV;
+  s+='<text x="'+L+'" y="16" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">Net '+(net>=0?'+':'−')+FMT(Math.abs(net))+' BQL · '+(startV?PCT(net/startV*100):'–')+'</text>';
+  s+='</svg>';
+
+  let t='<div class="tw" style="margin-top:10px"><table class="dt compact" style="min-width:480px">'+
+        '<tr><th>'+(byCh?'Channel':'Sub-channel')+'</th><th>LMTD</th><th>'+rangeLabel()+'</th><th>Δ</th><th>Δ%</th><th>Share of net</th></tr>';
+  bars.forEach(b=>{
+    const lv=l[b.n]?.bql||0, mv=m[b.n]?.bql||0;
+    t+='<tr><td>'+b.n+'</td><td class="num m">'+FMT(b.roll?'':lv)+'</td><td class="num">'+FMT(b.roll?'':mv)+'</td>'+
+       '<td class="num">'+DLT(b.d)+'</td><td class="num">'+(lv&&!b.roll?DPC(b.d/lv*100):'–')+'</td>'+
+       '<td class="num m">'+(net?(b.d/net*100).toFixed(0)+'%':'–')+'</td></tr>';
+  });
+  t+='<tr class="tot"><td>Net movement</td><td class="num">'+FMT(startV)+'</td><td class="num">'+FMT(endV)+'</td>'+
+     '<td class="num">'+DLT(net)+'</td><td class="num">'+(startV?DPC(net/startV*100):'–')+'</td><td class="num">100%</td></tr></table></div>';
+
+  return '<h3>BQL movement · LMTD → '+rangeLabel()+' <span class="n">bridged by '+(byCh?'channel':'sub-channel')+'</span></h3>'+
+         '<div class="chartbox">'+s+'</div>'+t+
+         '<figcaption style="margin-top:8px">Green bars added BQL against the same span last month, red gave it back. '+(byCh?'Pick a channel in the filter bar to bridge its sub-channels instead.':'Showing sub-channels within '+S.ch+'.')+'</figcaption>';
+}
+
 /* ---- vertical bar chart, SVG ---- */
 function vBars(q, caption){
   if(!q || (!q.m.tot && !q.l.tot)) return '<div class="empty">No scored BQL in this scope.</div>';
@@ -798,8 +1040,8 @@ function vBars(q, caption){
     s+='<rect x="'+(x0+w+2)+'" y="'+py(x.l)+'" width="'+w+'" height="'+(B-py(x.l))+'" fill="var(--line2)" rx="2"><title>'+x.b+' · Aug '+FMT(x.lc)+' ('+x.l.toFixed(1)+'%)</title></rect>';
     s+='<text x="'+(x0+w+1)+'" y="'+(B+16)+'" font-size="11.5" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="Archivo,sans-serif">'+x.b+'</text>';
     /* value labels on both series */
-    if(x.m>=1.5) s+='<text x="'+(x0+w/2)+'" y="'+(py(x.m)-4)+'" font-size="10" font-weight="600" fill="var(--ink2)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.m.toFixed(1)+'%</text>';
-    if(x.l>=1.5) s+='<text x="'+(x0+w*1.5+2)+'" y="'+(py(x.l)-4)+'" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.l.toFixed(1)+'%</text>';
+    if(x.m>=0.05) s+='<text x="'+(x0+w/2)+'" y="'+(py(x.m)-4)+'" font-size="10" font-weight="600" fill="var(--ink2)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.m.toFixed(1)+'%</text>';
+    if(x.l>=0.05) s+='<text x="'+(x0+w*1.5+2)+'" y="'+(py(x.l)-4)+'" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.l.toFixed(1)+'%</text>';
   });
   s+='<line x1="'+L+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
   s+='<rect x="'+L+'" y="'+(H-20)+'" width="11" height="9" fill="var(--accent)" rx="2"/><text x="'+(L+16)+'" y="'+(H-12)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">'+rangeLabel()+'</text>';
