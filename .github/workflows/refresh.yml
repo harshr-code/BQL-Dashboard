@@ -1,0 +1,38 @@
+name: Refresh BQL dashboard
+
+on:
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-dash
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Build dash.json
+        shell: pwsh
+        run: ./scripts/build-dash.ps1 -Repo .
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- dash.json; then
+            echo "No change in dash.json — source had nothing new."
+            exit 0
+          fi
+          LAST=$(node -e "process.stdout.write(require('./dash.json').lastDate)")
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dash.json
+          git commit -m "Daily BQL refresh - data through ${LAST}"
+          git push
+          echo "Pushed. Data through ${LAST}."
