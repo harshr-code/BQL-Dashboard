@@ -1,5 +1,7 @@
 name: Refresh BQL dashboard
 
+# 10:00 IST = 04:30 UTC. GitHub's scheduler is best-effort and can run late
+# under load, so treat 10:00 as "not before", not "exactly at".
 on:
   schedule:
     - cron: '30 4 * * *'
@@ -36,3 +38,5 @@ jobs:
           git commit -m "Daily BQL refresh - data through ${LAST}"
           git push
           echo "Pushed. Data through ${LAST}."
+
+# re-registered 2026-09-30 14:00 to restart the schedule trigger
