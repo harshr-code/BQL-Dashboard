@@ -222,7 +222,7 @@ table.dt.compact td:first-child{font-size:11.5px;}
   <div class="foot">
     <b>Source.</b> Lead-level raw data, all rows. BQL is the sum of <code>bill_qualified</code>, not a row count. Delhi NCR merges Delhi, Noida, Ghaziabad, Gurgaon and Faridabad. Four channels are in scope: Digital, Referral, BTL and SolarPro. Cold Marketing, Newspaper, Experience Centre, IVR and Affiliate are excluded. Referral leads whose sub-source is BTL count under BTL, not Referral.<br>
     <b>Benchmarks.</b> LMTD is the same day-span of the previous month. AOP is the full-month Bill Qualified Target from the business plan — Agra, Coimbatore, Jalgaon and Solapur carry no AOP line, so they are excluded from AOP comparisons only.<br>
-    <b>Validation.</b> Aug 1–19 reconciles to the published daily report exactly (37,301). Sep 1–18 differs by 5 leads in 38,003 from late-arriving rows.
+    <b>Validation.</b> Every refresh checks the comparison month and each settled day against what is already published, and refuses to publish on a structural move. Late-arriving rows shift past days by a few leads.
   </div>
 </div>
 
@@ -241,8 +241,13 @@ fetch('dash.json?v='+Date.now()).then(r=>r.json()).then(j=>{ D=j; boot(); })
 function boot(){
   D.day = D.dates.map(d=>+d.slice(8,10));
   D.mon = D.dates.map(d=>+d.slice(5,7));
-  D.LAST = Math.max(...D.dates.filter(d=>+d.slice(5,7)===9).map(d=>+d.slice(8,10)));
-  const last = D.dates.filter(d=>+d.slice(5,7)===9).sort().pop();
+  { const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    D.YR=+D.lastDate.slice(0,4); D.CUR=+D.lastDate.slice(5,7);
+    D.PRV=D.CUR===1?12:D.CUR-1; D.PYR=D.CUR===1?D.YR-1:D.YR;
+    D.CURN=MN[D.CUR-1]; D.PRVN=MN[D.PRV-1]; D.DIM=new Date(D.YR,D.CUR,0).getDate();
+    D.PLAN=(D.planMonth||'2026-09')===D.lastDate.slice(0,7); }
+  D.LAST = Math.max(...D.dates.filter(d=>+d.slice(5,7)===D.CUR).map(d=>+d.slice(8,10)));
+  const last = D.dates.filter(d=>+d.slice(5,7)===D.CUR).sort().pop();
   document.getElementById('asof').textContent = new Date(last+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long'});
   fill('fCity', D.cities, 'All 23 clusters');
   fill('fCh', D.channels, 'All channels');
@@ -250,8 +255,8 @@ function boot(){
   S.to = D.LAST;
   const days = [...Array(D.LAST)].map((_,i)=>String(i+1));
   const df=document.getElementById('fFrom'), dt=document.getElementById('fTo');
-  df.innerHTML = days.map(d=>'<option value="'+d+'">Sep '+d+'</option>').join('');
-  dt.innerHTML = days.map(d=>'<option value="'+d+'">Sep '+d+'</option>').join('');
+  df.innerHTML = days.map(d=>'<option value="'+d+'">'+D.CURN+' '+d+'</option>').join('');
+  dt.innerHTML = days.map(d=>'<option value="'+d+'">'+D.CURN+' '+d+'</option>').join('');
   df.value='1'; dt.value=String(D.LAST);
   ['fCity','fCh','fSub','fFrom','fTo'].forEach(id=>document.getElementById(id).addEventListener('change', onFilter));
   document.getElementById('app').addEventListener('click', e=>{
@@ -294,7 +299,7 @@ function inPeriod(di, m, dmax, dmin){
   return D.mon[di]===m && D.day[di]<=hi && D.day[di]>=lo;
 }
 function rangeDays(){ return S.to - S.from + 1; }
-function rangeLabel(){ return S.from===1 && S.to===D.LAST ? 'Sep 1–'+D.LAST : 'Sep '+S.from+'–'+S.to; }
+function rangeLabel(){ return S.from===1 && S.to===D.LAST ? D.CURN+' 1–'+D.LAST : D.CURN+' '+S.from+'–'+S.to; }
 
 function totals(m, dmax, dmin){
   let bql=0, leads=0, lrm=0;
@@ -313,6 +318,7 @@ function byKey(keyFn, m, dmax){
   return o;
 }
 function aopFor(city, ch){
+  if(!D.PLAN) return 0;
   let v=0;
   for(const a of D.aop){
     if(city && D.cities[a[0]]!==city) continue;
@@ -322,6 +328,7 @@ function aopFor(city, ch){
   return v;
 }
 function aopScoped(){
+  if(!D.PLAN) return 0;
   let v=0;
   for(const a of D.aop){
     if(S.city!=='all' && D.cities[a[0]]!==S.city) continue;
@@ -332,8 +339,8 @@ function aopScoped(){
 }
 
 function render(){
-  const L=D.LAST, DIM=30, pace=rangeDays()/DIM;
-  const mtd=totals(9), lmtd=totals(8), aop=aopScoped();
+  const L=D.LAST, DIM=D.DIM, pace=rangeDays()/DIM;
+  const mtd=totals(D.CUR), lmtd=totals(D.PRV), aop=aopScoped();
   const dPct = lmtd.bql ? (mtd.bql-lmtd.bql)/lmtd.bql*100 : NaN;
   const proj = mtd.bql/pace;
   const scopeTxt = [S.city==='all'?'All clusters':S.city, S.ch==='all'?'All channels':S.ch, S.sub==='all'?null:S.sub].filter(Boolean).join(' · ');
@@ -343,31 +350,31 @@ function render(){
   h+=insights();
   h+=navBar();
   /* ---- 1 INDIA / SCOPE HEADLINE ---- */
-  h+='<section id="s-headline" style="margin-top:20px"><h2>1 · Headline <span class="n">'+scopeTxt+' · '+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</span></h2>';
+  h+='<section id="s-headline" style="margin-top:20px"><h2>1 · Headline <span class="n">'+scopeTxt+' · '+rangeLabel()+' vs '+D.PRVN+' '+S.from+'–'+S.to+'</span></h2>';
   h+='<div class="heroes">';
   const mopV = S.sub!=='all' ? 0 : mopFor(S.city==='all'?null:S.city, S.ch==='all'?null:S.ch);
   h+=tile('BQL MTD', FMT(mtd.bql), FMT(mtd.leads)+' leads · '+(mtd.leads?(mtd.bql/mtd.leads*100).toFixed(1):'–')+'% qualify');
   h+=tile('vs LMTD', PCT(dPct), FMT(mtd.bql-lmtd.bql)+' leads · LMTD '+FMT(lmtd.bql), dPct>=0?'g':'c');
   h+=mopV>0
       ? tile('vs MOP', PCT((mtd.bql/mopV-1)*100), FMT(mtd.bql-mopV)+' leads · MOP '+FMT(mopV), (mtd.bql>=mopV)?'g':'c')
-      : tile('vs MOP', '–', S.sub!=='all' ? 'no MOP at sub-channel' : 'no MOP for this scope');
+      : tile('vs MOP', '–', S.sub!=='all' ? 'no MOP at sub-channel' : (D.PLAN ? 'no MOP for this scope' : D.CURN+' MOP not loaded yet'));
   const aopPace = aop ? aop*pace : 0;   /* AOP is a full-month plan — prorate to the window */
   h+=aop
       ? tile('AOP target', FMT(aop), FMT(aopPace)+' to date · '+(aopPace?DPC((mtd.bql/aopPace-1)*100):'–'), (mtd.bql>=aopPace)?'g':'c')
-      : tile('AOP target', '–', S.sub!=='all' ? 'no AOP at sub-channel' : 'no AOP for this scope');
+      : tile('AOP target', '–', S.sub!=='all' ? 'no AOP at sub-channel' : (D.PLAN ? 'no AOP for this scope' : D.CURN+' AOP not loaded yet'));
   h+='</div>';
   h+='<figcaption style="margin-top:8px"><b>AOP target</b> is the full-month plan for this scope. <b>to date</b> prorates it to the '+rangeDays()+' days shown; the percentage is actual against that prorated figure — green means ahead of plan pace, red behind.</figcaption>';
 
 
   /* ---- DoD, collapsible ---- */
-  h+='<details class="fold" open><summary>Daily BQL · Sep vs Aug<span class="n">last 10 days · click to collapse</span></summary><div class="foldbody">';
+  h+='<details class="fold" open><summary>Daily BQL · '+D.CURN+' vs '+D.PRVN+'<span class="n">last 10 days · click to collapse</span></summary><div class="foldbody">';
   h+=dodTable();
   h+='</div></details>';
 
   /* last 7 days vs same 7 last month */
-  const l7=totals(9,L,L-6), p7=totals(8,L,L-6);
+  const l7=totals(D.CUR,L,L-6), p7=totals(D.PRV,L,L-6);
   const d7 = p7.bql ? (l7.bql-p7.bql)/p7.bql*100 : NaN;
-  h+='<div class="note"><b>Last 7 days.</b> Sep '+(L-6)+'–'+L+' delivered <b>'+FMT(l7.bql)+'</b> BQL against <b>'+FMT(p7.bql)+'</b> for Aug '+(L-6)+'–'+L+' — '+PCT(d7)+', '+FMT(l7.bql-p7.bql)+' leads. Daily average '+FMT(l7.bql/7)+' vs '+FMT(p7.bql/7)+'.</div>';
+  h+='<div class="note"><b>Last 7 days.</b> '+D.CURN+' '+(L-6)+'–'+L+' delivered <b>'+FMT(l7.bql)+'</b> BQL against <b>'+FMT(p7.bql)+'</b> for '+D.PRVN+' '+(L-6)+'–'+L+' — '+PCT(d7)+', '+FMT(l7.bql-p7.bql)+' leads. Daily average '+FMT(l7.bql/7)+' vs '+FMT(p7.bql/7)+'.</div>';
   h+='</section>';
 
   /* ---- 2 LEAD SENT TO LRM — Digital only ---- */
@@ -375,7 +382,7 @@ function render(){
 
   /* ---- 3 CHANNEL ---- */
   {
-    const cm=byKey(r=>D.channels[r[2]], 9), cl=byKey(r=>D.channels[r[2]], 8);
+    const cm=byKey(r=>D.channels[r[2]], D.CUR), cl=byKey(r=>D.channels[r[2]], D.PRV);
     const tot=Object.values(cm).reduce((a,b)=>a+b.bql,0), totL=Object.values(cl).reduce((a,b)=>a+b.bql,0);
 
   h+='<section id="s-channels"><h2>3 · Channels <span class="n">volume, mix and movement</span></h2>';
@@ -409,7 +416,7 @@ function render(){
 
   /* ---- 3 CITIES ---- */
   if(S.city==='all'){
-    const km=byKey(r=>D.cities[r[1]], 9), kl=byKey(r=>D.cities[r[1]], 8);
+    const km=byKey(r=>D.cities[r[1]], D.CUR), kl=byKey(r=>D.cities[r[1]], D.PRV);
     const mOK=mopOk();
     const rows=D.cities.map(c=>{
       const v=km[c]?.bql||0, lv=kl[c]?.bql||0, a=aopFor(c, S.ch==='all'?null:S.ch), mo=mOK?mopFor(c, S.ch==='all'?null:S.ch):0;
@@ -417,7 +424,7 @@ function render(){
     }).sort((a,b)=>a.d-b.d);
     h+='<section id="s-cities"><h2>4 · Cities <span class="n">'+(S.ch==='all'?'all channels':S.ch)+(S.sub==='all'?'':' · '+S.sub)+'</span></h2>';
     h+='<p class="lede">Ranked by leads gained or lost against the same span last month. Pick a city above to drive the whole page.</p>';
-    h+=quadSvg(rows);
+    h+= D.PLAN ? quadSvg(rows) : '<div class="note">'+D.CURN+' MOP/AOP targets are not loaded yet, so the plan quadrant is hidden. Volume and movement against '+D.PRVN+' below are unaffected.</div>';
     h+='<p style="font-size:12px;color:var(--muted);margin:0 0 8px">Click any cluster to open its deep dive.</p>';
     h+='<div class="tw"><table class="dt" style="min-width:760px"><tr><th>Cluster</th><th>MTD</th><th>LMTD</th><th>Δ</th><th>Δ%</th><th>MOP</th><th>Δ vs MOP</th><th>% MOP</th><th>AOP full month</th><th>% of AOP</th><th>Group</th></tr>';
     for(const r of rows){
@@ -444,7 +451,7 @@ function render(){
             let a=0,b=0;
             for(const x of D.daily){ if(D.cities[x[1]]!==r.c || D.channels[x[2]]!==c) continue;
               if(S.sub!=='all' && D.subs[x[3]]!==S.sub) continue;
-              if(inPeriod(x[0],9)) a+=x[5]; if(inPeriod(x[0],8)) b+=x[5]; }
+              if(inPeriod(x[0],D.CUR)) a+=x[5]; if(inPeriod(x[0],D.PRV)) b+=x[5]; }
             return {c, d:a-b, has:(a+b)>0};
           });
           const worst=cells.filter(x=>x.d<0).sort((a,b)=>a.d-b.d).slice(0,2).map(x=>x.c);
@@ -518,7 +525,7 @@ function lrmAgg(m, ch, city, sub){
 function lrmSection(){
   const city = S.city==='all' ? null : S.city;
   const scope = S.city==='all' ? 'All 23 clusters' : S.city;
-  const m = lrmAgg(9,'Digital',city), l = lrmAgg(8,'Digital',city);
+  const m = lrmAgg(D.CUR,'Digital',city), l = lrmAgg(D.PRV,'Digital',city);
 
   let h='<section id="s-lrm"><h2>2 · Lead sent to LRM <span class="n">Digital · '+scope+' · '+rangeLabel()+'</span></h2>';
   h+='<p class="lede">BQL to Lead-sent-to-LRM for the Digital channel. City and date filters above apply.</p>';
@@ -536,7 +543,7 @@ function lrmSection(){
   /* citywise movement table */
   if(S.city==='all'){
     const rows=D.cities.map(c=>{
-      const a=lrmAgg(9,'Digital',c), b=lrmAgg(8,'Digital',c);
+      const a=lrmAgg(D.CUR,'Digital',c), b=lrmAgg(D.PRV,'Digital',c);
       return {c, bql:a.bql, lrm:a.lrm, p:a.pct, pl:b.pct, d:a.pct-b.pct};
     }).filter(r=>r.bql>0).sort((a,b)=>a.d-b.d);
     h+='<h3>Movement by cluster <span class="n">steepest fall first</span></h3><div class="tw"><table class="dt compact" style="min-width:660px">'+
@@ -565,7 +572,7 @@ function lrmDaily(city, scope){
     for(const r of D.daily){
       if(D.channels[r[2]]!=='Digital') continue;
       if(city && D.cities[r[1]]!==city) continue;
-      if(D.mon[r[0]]!==9 || D.day[r[0]]!==d) continue;
+      if(D.mon[r[0]]!==D.CUR || D.day[r[0]]!==d) continue;
       bql+=r[5]; lrm+=r[6];
     }
     days.push({d, bql, lrm, p: bql?lrm/bql*100:0});
@@ -580,8 +587,8 @@ function lrmDaily(city, scope){
     '<text x="'+(Lf-7)+'" y="'+(py(v)+4)+'" font-size="10" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Sans,sans-serif">'+FMT(v)+'</text>'; }
   days.forEach((x,i)=>{
     const x0=Lf+i*bw+pad;
-    s+='<rect x="'+x0+'" y="'+py(x.bql)+'" width="'+w+'" height="'+(B-py(x.bql))+'" fill="var(--accent)" rx="2"><title>Sep '+x.d+' BQL '+FMT(x.bql)+'</title></rect>';
-    s+='<rect x="'+(x0+w+2)+'" y="'+py(x.lrm)+'" width="'+w+'" height="'+(B-py(x.lrm))+'" fill="var(--good)" rx="2"><title>Sep '+x.d+' LRM '+FMT(x.lrm)+'</title></rect>';
+    s+='<rect x="'+x0+'" y="'+py(x.bql)+'" width="'+w+'" height="'+(B-py(x.bql))+'" fill="var(--accent)" rx="2"><title>'+D.CURN+' '+x.d+' BQL '+FMT(x.bql)+'</title></rect>';
+    s+='<rect x="'+(x0+w+2)+'" y="'+py(x.lrm)+'" width="'+w+'" height="'+(B-py(x.lrm))+'" fill="var(--good)" rx="2"><title>'+D.CURN+' '+x.d+' LRM '+FMT(x.lrm)+'</title></rect>';
     s+='<text x="'+(x0+w+1)+'" y="'+(B+15)+'" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.d+'</text>';
     s+='<text x="'+(x0+w+1)+'" y="'+(py(x.bql)-6)+'" font-size="9.5" font-weight="600" fill="var(--ink2)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.p.toFixed(0)+'%</text>';
   });
@@ -594,11 +601,11 @@ function lrmDaily(city, scope){
 }
 
 function refSection(){
-  const m=refSplit(9), l=refSplit(8);
+  const m=refSplit(D.CUR), l=refSplit(D.PRV);
   const scope = S.city==='all' ? 'All 23 clusters' : S.city;
   let h='<section id="s-referral"><h2>6 · SC-generated referrals <span class="n">'+scope+' · '+rangeLabel()+'</span></h2>';
   h+='<p class="lede">Referral BQL split by whether a Solar Consultant sourced it. Sales sub-source is SC-generated; everything else in the Referral channel is not. BTL-sourced referrals are excluded here because they now sit under BTL.</p>';
-  h+='<div class="inlinefilters"><span class="ifl">Showing</span><b>'+scope+'</b><span class="ifl">·</span><b>'+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</b><span class="ifl" style="margin-left:auto">City and date filters at the top drive this section</span></div>';
+  h+='<div class="inlinefilters"><span class="ifl">Showing</span><b>'+scope+'</b><span class="ifl">·</span><b>'+rangeLabel()+' vs '+D.PRVN+' '+S.from+'–'+S.to+'</b><span class="ifl" style="margin-left:auto">City and date filters at the top drive this section</span></div>';
 
   h+='<div class="heroes">';
   h+=tile('SC-generated', FMT(m.sales), FMT(m.sales-l.sales)+' vs LMTD '+FMT(l.sales), m.sales>=l.sales?'g':'c');
@@ -609,7 +616,7 @@ function refSection(){
 
   /* per-city table source */
   const rows=D.cities.map(c=>{
-    const a=refSplit(9,c), b=refSplit(8,c);
+    const a=refSplit(D.CUR,c), b=refSplit(D.PRV,c);
     return {c, s:a.sales, sl:b.sales, o:a.other, ol:b.other, d:a.sales-b.sales};
   }).filter(r=>r.s>0||r.sl>0).sort((a,b)=>b.s-a.s);
   /* chart only when a single city is in scope — an all-cluster bar stack is unreadable */
@@ -641,13 +648,13 @@ function refSection(){
 
 /* ---- city deep dive ---- */
 function deepDive(){
-  const pace=rangeDays()/30;
+  const pace=rangeDays()/D.DIM;
   let h='<section id="s-deep"><h2>7 · '+S.city+' deep dive <span class="n">'+rangeLabel()+'</span></h2>';
   h+='<p class="lede">Everything for this cluster — channel breakup against both benchmarks, then lead quality by channel and by sub-channel. Channel, sub-channel and date filters above all apply here.</p>';
 
   const keep={ch:S.ch, sub:S.sub};
   S.ch='all'; S.sub='all';
-  const cm=byKey(r=>D.channels[r[2]],9), cl=byKey(r=>D.channels[r[2]],8);
+  const cm=byKey(r=>D.channels[r[2]], D.CUR), cl=byKey(r=>D.channels[r[2]], D.PRV);
   S.ch=keep.ch; S.sub=keep.sub;
   const tot=Object.values(cm).reduce((a,b)=>a+b.bql,0), totL=Object.values(cl).reduce((a,b)=>a+b.bql,0);
 
@@ -676,10 +683,10 @@ function deepDive(){
 
   /* leads delivered to LRM — Digital only */
   {
-    const dm=lrmAgg(9,'Digital',S.city), dl=lrmAgg(8,'Digital',S.city);
+    const dm=lrmAgg(D.CUR,'Digital',S.city), dl=lrmAgg(D.PRV,'Digital',S.city);
     h+='<h3>Leads delivered to LRM <span class="n">Digital only · '+S.city+'</span></h3>';
     h+='<div class="tw"><table class="dt compact" style="min-width:520px">'+
-       '<tr><th>Measure</th><th>'+rangeLabel()+'</th><th>Aug '+S.from+'–'+S.to+'</th><th>Δ</th></tr>'+
+       '<tr><th>Measure</th><th>'+rangeLabel()+'</th><th>'+D.PRVN+' '+S.from+'–'+S.to+'</th><th>Δ</th></tr>'+
        '<tr><td>Digital BQL</td><td class="num">'+FMT(dm.bql)+'</td><td class="num m">'+FMT(dl.bql)+'</td><td class="num">'+DLT(dm.bql-dl.bql)+'</td></tr>'+
        '<tr><td>Delivered to LRM</td><td class="num">'+FMT(dm.lrm)+'</td><td class="num m">'+FMT(dl.lrm)+'</td><td class="num">'+DLT(dm.lrm-dl.lrm)+'</td></tr>'+
        '<tr><td>Not delivered</td><td class="num">'+FMT(dm.bql-dm.lrm)+'</td><td class="num m">'+FMT(dl.bql-dl.lrm)+'</td><td class="num">'+DLT((dm.bql-dm.lrm)-(dl.bql-dl.lrm))+'</td></tr>'+
@@ -790,7 +797,7 @@ function qualStats(){
   let bM=0,bL=0,sM=0,sL=0,pM=0,pL=0,tM=0,tL=0;
   for(const r of D.bucket){
     if(!bMatch(r)) continue;
-    const isSep=r[0]===9, bq=r[6], sxb=r[7], bk=D.buckets[r[5]];
+    const isSep=r[0]===D.CUR, bq=r[6], sxb=r[7], bk=D.buckets[r[5]];
     if(isSep){ tM+=bq; if(bk!=='No Score'){bM+=bq; sM+=sxb;} if(bk==='7-9'||bk==='9-10') pM+=bq; }
     else { tL+=bq; if(bk!=='No Score'){bL+=bq; sL+=sxb;} if(bk==='7-9'||bk==='9-10') pL+=bq; }
   }
@@ -801,7 +808,7 @@ function qualBy(keyFn){
   for(const r of D.bucket){
     if(!bMatch(r)) continue;
     const k=keyFn(r); if(!o[k]) o[k]={m:{b:new Array(6).fill(0),tot:0,prem:0}, l:{b:new Array(6).fill(0),tot:0,prem:0}};
-    const t = r[0]===9 ? o[k].m : o[k].l;
+    const t = r[0]===D.CUR ? o[k].m : o[k].l;
     t.b[r[5]]+=r[6]; t.tot+=r[6];
   }
   for(const k in o){ for(const t of [o[k].m,o[k].l]){ t.prem = t.tot ? (t.b[3]+t.b[4])/t.tot*100 : 0; } }
@@ -809,6 +816,7 @@ function qualBy(keyFn){
 }
 /* MOP is a flat daily target, so a range total is rate x days */
 function mopFor(city, ch){
+  if(!D.PLAN) return 0;
   let r=0;
   for(const m of D.mopRate){
     if(city && D.cities[m[0]]!==city) continue;
@@ -823,8 +831,8 @@ function mopOk(){ return true; }
    Mirrors the Daily Sales Report house style: direction, the number, the movement,
    then named clusters with the shortfall quantified. Derived, not written. */
 function insights(){
-  const L=D.LAST, pace=rangeDays()/30;
-  const mtd=totals(9), lmtd=totals(8);
+  const L=D.LAST, pace=rangeDays()/D.DIM;
+  const mtd=totals(D.CUR), lmtd=totals(D.PRV);
   const mopV = mopFor(S.city==='all'?null:S.city, S.ch==='all'?null:S.ch);
   const cards=[];
 
@@ -840,7 +848,7 @@ function insights(){
 
   /* 2 — clusters driving the decline */
   if(S.city==='all'){
-    const km=byKey(r=>D.cities[r[1]],9), kl=byKey(r=>D.cities[r[1]],8);
+    const km=byKey(r=>D.cities[r[1]], D.CUR), kl=byKey(r=>D.cities[r[1]], D.PRV);
     const losers=D.cities.map(c=>({c, v:km[c]?.bql||0, lv:kl[c]?.bql||0}))
       .map(x=>({...x, d:x.v-x.lv})).filter(x=>x.d<0).sort((a,b)=>a.d-b.d);
     const tot=losers.reduce((a,b)=>a+b.d,0);
@@ -857,7 +865,7 @@ function insights(){
 
   /* 3 — channel that moved it most */
   {
-    const cm=byKey(r=>D.channels[r[2]],9), cl=byKey(r=>D.channels[r[2]],8);
+    const cm=byKey(r=>D.channels[r[2]], D.CUR), cl=byKey(r=>D.channels[r[2]], D.PRV);
     const mv=D.channels.map(c=>({c, d:(cm[c]?.bql||0)-(cl[c]?.bql||0), v:cm[c]?.bql||0, lv:cl[c]?.bql||0}))
       .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
     const body=mv.slice(0,4).map(x=>'<b>'+x.c+'</b> — '+FMT(x.v)+' vs '+FMT(x.lv)+', '+(x.d>=0?'+':'−')+FMT(Math.abs(x.d))+(x.lv?' ('+PCT(x.d/x.lv*100)+')':'')+'.');
@@ -869,12 +877,12 @@ function insights(){
   /* 4 — Digital BQL to LRM */
   {
     const city=S.city==='all'?null:S.city;
-    const a=lrmAgg(9,'Digital',city), b=lrmAgg(8,'Digital',city);
+    const a=lrmAgg(D.CUR,'Digital',city), b=lrmAgg(D.PRV,'Digital',city);
     if(a.bql){
       const body=['<b>'+FMT(a.lrm)+'</b> of '+FMT(a.bql)+' Digital BQL reached the LRM. '+FMT(a.bql-a.lrm)+' did not.',
                   'LMTD '+b.pct.toFixed(1)+'% → '+a.pct.toFixed(1)+'%.'];
       if(S.city==='all'){
-        const worst=D.cities.map(c=>{const x=lrmAgg(9,'Digital',c), y=lrmAgg(8,'Digital',c);
+        const worst=D.cities.map(c=>{const x=lrmAgg(D.CUR,'Digital',c), y=lrmAgg(D.PRV,'Digital',c);
           return {c, p:x.pct, d:x.pct-y.pct, bql:x.bql};}).filter(x=>x.bql>200).sort((x,y)=>x.d-y.d).slice(0,3);
         worst.forEach(x=>body.push('<b>'+x.c+'</b> — '+x.p.toFixed(1)+'% ('+PP(x.d)+' vs LMTD) on '+FMT(x.bql)+' BQL.'));
       }
@@ -893,7 +901,7 @@ function insights(){
     }
   }
 
-  let h='<section id="s-insights" class="insights"><h2>Daily insights <span class="n">auto-generated · '+scopeLine()+' · '+rangeLabel()+' vs Aug '+S.from+'–'+S.to+'</span></h2>';
+  let h='<section id="s-insights" class="insights"><h2>Daily insights <span class="n">auto-generated · '+scopeLine()+' · '+rangeLabel()+' vs '+D.PRVN+' '+S.from+'–'+S.to+'</span></h2>';
   h+='<div class="icards">';
   for(const c of cards){
     h+='<div class="icard '+(c.dir>=0?'up':'down')+'">'+
@@ -942,7 +950,7 @@ function refCityBars(m, l, city){
   });
   s+='<line x1="'+Lf+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
   s+='<rect x="'+Lf+'" y="'+(H-16)+'" width="11" height="9" fill="var(--accent)" rx="2"/><text x="'+(Lf+16)+'" y="'+(H-8)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">'+rangeLabel()+'</text>';
-  s+='<rect x="'+(Lf+120)+'" y="'+(H-16)+'" width="11" height="9" fill="var(--line2)" rx="2"/><text x="'+(Lf+136)+'" y="'+(H-8)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">Aug '+S.from+'–'+S.to+'</text>';
+  s+='<rect x="'+(Lf+120)+'" y="'+(H-16)+'" width="11" height="9" fill="var(--line2)" rx="2"/><text x="'+(Lf+136)+'" y="'+(H-8)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">'+D.PRVN+' '+S.from+'–'+S.to+'</text>';
   s+='</svg>';
   return '<h3>Referral split · '+city+'</h3><div class="chartbox">'+s+'</div>';
 }
@@ -952,7 +960,7 @@ function refCityBars(m, l, city){
 function bridge(startV, endV){
   const byCh = S.ch==='all';
   const keyFn = byCh ? (r=>D.channels[r[2]]) : (r=>D.subs[r[3]]);
-  const m=byKey(keyFn,9), l=byKey(keyFn,8);
+  const m=byKey(keyFn, D.CUR), l=byKey(keyFn, D.PRV);
   const names=[...new Set([...Object.keys(m),...Object.keys(l)])];
   let steps=names.map(n=>({n, d:(m[n]?.bql||0)-(l[n]?.bql||0)})).filter(x=>x.d!==0);
   steps.sort((a,b)=>b.d-a.d);
@@ -1037,15 +1045,15 @@ function vBars(q, caption){
   const W=760,H=196,L=46,R=746,T=12,B=146;
   const bw=(R-L)/bs.length, pad=bw*0.16, w=(bw-pad*2)/2;
   const py=v=>B-(v/top)*(B-T);
-  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Share of BQL by lead-score bucket, September against August.">';
+  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Share of BQL by lead-score bucket, this month against last month.">';
   for(let g=0; g<=top; g+=(top>30?10:5)){
     s+='<line x1="'+L+'" y1="'+py(g)+'" x2="'+R+'" y2="'+py(g)+'" stroke="var(--line)"/>';
     s+='<text x="'+(L-8)+'" y="'+(py(g)+4)+'" font-size="10.5" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Sans,sans-serif">'+g+'%</text>';
   }
   bs.forEach((x,i)=>{
     const x0=L+i*bw+pad;
-    s+='<rect x="'+x0+'" y="'+py(x.m)+'" width="'+w+'" height="'+(B-py(x.m))+'" fill="var(--accent)" rx="2"><title>'+x.b+' · Sep '+FMT(x.mc)+' ('+x.m.toFixed(1)+'%)</title></rect>';
-    s+='<rect x="'+(x0+w+2)+'" y="'+py(x.l)+'" width="'+w+'" height="'+(B-py(x.l))+'" fill="var(--line2)" rx="2"><title>'+x.b+' · Aug '+FMT(x.lc)+' ('+x.l.toFixed(1)+'%)</title></rect>';
+    s+='<rect x="'+x0+'" y="'+py(x.m)+'" width="'+w+'" height="'+(B-py(x.m))+'" fill="var(--accent)" rx="2"><title>'+x.b+' · '+D.CURN+' '+FMT(x.mc)+' ('+x.m.toFixed(1)+'%)</title></rect>';
+    s+='<rect x="'+(x0+w+2)+'" y="'+py(x.l)+'" width="'+w+'" height="'+(B-py(x.l))+'" fill="var(--line2)" rx="2"><title>'+x.b+' · '+D.PRVN+' '+FMT(x.lc)+' ('+x.l.toFixed(1)+'%)</title></rect>';
     s+='<text x="'+(x0+w+1)+'" y="'+(B+16)+'" font-size="11.5" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="Archivo,sans-serif">'+x.b+'</text>';
     /* value labels on both series */
     if(x.m>=0.05) s+='<text x="'+(x0+w/2)+'" y="'+(py(x.m)-4)+'" font-size="10" font-weight="600" fill="var(--ink2)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+x.m.toFixed(1)+'%</text>';
@@ -1053,7 +1061,7 @@ function vBars(q, caption){
   });
   s+='<line x1="'+L+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
   s+='<rect x="'+L+'" y="'+(H-20)+'" width="11" height="9" fill="var(--accent)" rx="2"/><text x="'+(L+16)+'" y="'+(H-12)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">'+rangeLabel()+'</text>';
-  s+='<rect x="'+(L+130)+'" y="'+(H-20)+'" width="11" height="9" fill="var(--line2)" rx="2"/><text x="'+(L+146)+'" y="'+(H-12)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">Aug '+S.from+'–'+S.to+'</text>';
+  s+='<rect x="'+(L+130)+'" y="'+(H-20)+'" width="11" height="9" fill="var(--line2)" rx="2"/><text x="'+(L+146)+'" y="'+(H-12)+'" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">'+D.PRVN+' '+S.from+'–'+S.to+'</text>';
   s+='</svg>';
   let t='<div class="tw" style="margin-top:10px"><table class="dt compact" style="min-width:480px"><tr><th>Bucket</th><th>MTD</th><th>MTD %</th><th>LMTD</th><th>LMTD %</th><th>Δ pp</th></tr>';
   bs.forEach(x=>{ const d=x.m-x.l;
@@ -1064,15 +1072,15 @@ function vBars(q, caption){
 
 function dodTable(){
   const DAYS=10;
-  const sep=series(9), aug=series(8), L=D.LAST, from=Math.max(1,L-(DAYS-1));
+  const sep=series(D.CUR), aug=series(D.PRV), L=D.LAST, from=Math.max(1,L-(DAYS-1));
   const nD=L-from+1;
   const WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let sT=0,aT=0;
-  let t='<div class="tw"><table class="dt" style="min-width:560px"><tr><th>Date</th><th>MTD · Sep</th><th>LMTD · Aug</th><th>Δ</th><th>Δ%</th><th>Share of Sep '+nD+'d</th></tr>';
+  let t='<div class="tw"><table class="dt" style="min-width:560px"><tr><th>Date</th><th>MTD · '+D.CURN+'</th><th>LMTD · '+D.PRVN+'</th><th>Δ</th><th>Δ%</th><th>Share of '+D.CURN+' '+nD+'d</th></tr>';
   for(let d=from; d<=L; d++){ sT+=sep[d]; aT+=aug[d]; }
   for(let d=from; d<=L; d++){
     const s=sep[d], a=aug[d], dd=s-a;
-    const wdS=WD[new Date(2026,8,d).getDay()], wdA=WD[new Date(2026,7,d).getDay()];
+    const wdS=WD[new Date(D.YR,D.CUR-1,d).getDay()], wdA=WD[new Date(D.PYR,D.PRV-1,d).getDay()];
     t+='<tr'+((a && dd/a*100<=-20)?' class="hi"':'')+'>'+
        '<td>'+d+' <span class="m" style="font-weight:400">'+wdS+' / '+wdA+'</span></td>'+
        '<td class="num">'+FMT(s)+'</td><td class="num m">'+FMT(a)+'</td>'+
@@ -1080,13 +1088,13 @@ function dodTable(){
        '<td class="num">'+(a?DPC(dd/a*100):'–')+'</td>'+
        '<td class="num m">'+(sT?(s/sT*100).toFixed(1):'–')+'%</td></tr>';
   }
-  t+='<tr class="tot"><td>Sep '+from+'–'+L+'</td><td class="num">'+FMT(sT)+'</td><td class="num">'+FMT(aT)+'</td>'+
+  t+='<tr class="tot"><td>'+D.CURN+' '+from+'–'+L+'</td><td class="num">'+FMT(sT)+'</td><td class="num">'+FMT(aT)+'</td>'+
      '<td class="num">'+DLT(sT-aT)+'</td><td class="num">'+(aT?DPC((sT-aT)/aT*100):'–')+'</td>'+
      '<td class="num">100%</td></tr>'+
      '<tr><td class="m" style="font-weight:400">Daily average</td><td class="num">'+FMT(sT/nD)+'</td><td class="num m">'+FMT(aT/nD)+'</td>'+
      '<td class="num">'+DLT((sT-aT)/nD)+'</td><td class="num">'+(aT?DPC((sT-aT)/aT*100):'–')+'</td><td class="num m">–</td></tr>'+
      '</table></div>';
-  t+='<figcaption style="margin-top:8px">Last '+nD+' days of the month-to-date window against the same dates in August. The second weekday on each row is August’s — where they differ, part of the gap is calendar, not performance. Rows shaded red are 20% or more below the same date last month.</figcaption>';
+  t+='<figcaption style="margin-top:8px">Last '+nD+' days of the month-to-date window against the same dates in '+D.PRVN+'. The second weekday on each row is '+D.PRVN+'’s — where they differ, part of the gap is calendar, not performance. Rows shaded red are 20% or more below the same date last month.</figcaption>';
   return t;
 }
 </script>
