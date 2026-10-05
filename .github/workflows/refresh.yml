@@ -4,7 +4,7 @@ name: Refresh BQL dashboard
 # under load, so treat 10:00 as "not before", not "exactly at".
 on:
   schedule:
-    - cron: '30 4 * * *'
+    - cron: '30 2-16/2 * * *'
   workflow_dispatch:
 
 permissions:
@@ -28,7 +28,7 @@ jobs:
       - name: Commit if changed
         run: |
           if git diff --quiet -- dash.json; then
-            echo "No change in dash.json — source had nothing new."
+            echo "No change in dash.json â€” source had nothing new."
             exit 0
           fi
           LAST=$(node -e "process.stdout.write(require('./dash.json').lastDate)")
@@ -38,5 +38,3 @@ jobs:
           git commit -m "Daily BQL refresh - data through ${LAST}"
           git push
           echo "Pushed. Data through ${LAST}."
-
-# re-registered 2026-09-30 14:00 to restart the schedule trigger
