@@ -1,7 +1,8 @@
 name: Refresh BQL dashboard
 
-# 10:00 IST = 04:30 UTC. GitHub's scheduler is best-effort and can run late
-# under load, so treat 10:00 as "not before", not "exactly at".
+# Every 2 hours, 08:00-22:00 IST (02:30-16:30 UTC). GitHub's scheduler runs hours late
+# under load, and the source finishes writing the previous day at an unpredictable time,
+# so a single daily run misses data. Runs only commit when dash.json actually changed.
 on:
   schedule:
     - cron: '30 2-16/2 * * *'
@@ -28,13 +29,13 @@ jobs:
       - name: Commit if changed
         run: |
           if git diff --quiet -- dash.json; then
-            echo "No change in dash.json â€” source had nothing new."
+            echo "No change in dash.json - source had nothing new."
             exit 0
           fi
           LAST=$(node -e "process.stdout.write(require('./dash.json').lastDate)")
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dash.json
-          git commit -m "Daily BQL refresh - data through ${LAST}"
+          git commit -m "BQL refresh - data through ${LAST}"
           git push
           echo "Pushed. Data through ${LAST}."
