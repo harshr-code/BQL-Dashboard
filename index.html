@@ -88,6 +88,23 @@ details.fold>.foldbody{padding:0 13px 13px}
   .fg label{font-family:"Archivo",sans-serif; font-size:9.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);}
   .fg select{font-family:inherit; font-size:13px; padding:6px 9px; border:1px solid var(--line2); border-radius:3px; background:var(--surface); color:var(--ink); min-width:140px;}
   .fg select:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+.filters{z-index:30}
+.ms{position:relative}
+.msbtn{font-family:inherit; font-size:13px; padding:6px 26px 6px 9px; border:1px solid var(--line2); border-radius:3px; background:var(--surface); color:var(--ink); min-width:140px; max-width:210px; text-align:left; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; position:relative; display:block}
+.msbtn::after{content:"\25BE"; position:absolute; right:9px; top:6px; color:var(--muted)}
+.msbtn.on{border-color:var(--accent); color:var(--accent); font-weight:600}
+.msbtn:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.mspop{position:absolute; top:calc(100% + 4px); left:0; z-index:40; width:260px; max-width:calc(100vw - 32px); background:var(--surface); border:1px solid var(--line2); border-radius:4px; box-shadow:0 10px 28px rgba(0,0,0,.16); padding:8px}
+.mssearch{width:100%; box-sizing:border-box; font:inherit; font-size:12.5px; padding:6px 8px; border:1px solid var(--line2); border-radius:3px; background:var(--ground); color:var(--ink)}
+.msacts{display:flex; gap:6px; margin:7px 0 4px; align-items:center}
+.msacts .mscount{margin-left:auto; font-size:11px; color:var(--muted)}
+.msacts button,.msdone{font-family:"Archivo",sans-serif; font-size:11px; font-weight:600; padding:4px 9px; border:1px solid var(--line2); border-radius:3px; background:var(--surface); color:var(--ink2); cursor:pointer}
+.mslist{max-height:260px; overflow:auto; margin:2px -4px}
+.fg .mslist label{display:flex; align-items:center; gap:8px; padding:5px 6px; font-family:inherit; font-size:12.5px; font-weight:400; letter-spacing:0; text-transform:none; color:var(--ink); cursor:pointer; border-radius:3px}
+.fg .mslist label:hover{background:var(--sunk)}
+.mslist input{accent-color:var(--accent); margin:0}
+.msempty{font-size:12px; color:var(--muted); padding:6px}
+.msdone{width:100%; margin-top:7px; background:var(--accent); color:#fff; border-color:var(--accent)}
   .reset{font-family:"Archivo",sans-serif; font-size:11px; font-weight:600; padding:7px 11px; border:1px solid var(--line2); border-radius:3px; background:var(--surface); color:var(--ink2); cursor:pointer;}
   .scope{font-size:12px; color:var(--muted); margin-left:auto; align-self:center;}
 
@@ -177,9 +194,9 @@ table.dt.compact td:first-child{font-size:11.5px;}
   </header>
 
   <div class="filters">
-    <div class="fg"><label for="fCity">City</label><select id="fCity"></select></div>
-    <div class="fg"><label for="fCh">Channel</label><select id="fCh"></select></div>
-    <div class="fg"><label for="fSub">Sub-channel</label><select id="fSub"></select></div>
+    <div class="fg"><label>City</label><div class="ms" id="fCity"></div></div>
+    <div class="fg"><label>Channel</label><div class="ms" id="fCh"></div></div>
+    <div class="fg"><label>Sub-channel</label><div class="ms" id="fSub"></div></div>
     <div class="fg"><label for="fFrom">From day</label><select id="fFrom" style="min-width:86px"></select></div>
     <div class="fg"><label for="fTo">To day</label><select id="fTo" style="min-width:86px"></select></div>
     <div class="fg"><label for="fCmp">Compare vs</label><select id="fCmp"><option value="lmtd">LMTD</option><option value="mop">MOP</option></select></div>
@@ -233,6 +250,16 @@ const PCT = n => (n==null||isNaN(n)||!isFinite(n)) ? '–' : (n>=0?'+':'') + n.t
 const PP  = n => (n==null||isNaN(n)) ? '–' : (n>=0?'+':'') + n.toFixed(1) + 'pp';
 const cls = n => n>0 ? 'okc' : (n<0 ? 'bad' : '');
 let D=null, S={city:'all', ch:'all', sub:'all', from:1, to:99, cmp:'lmtd'};
+/* Multi-select: each filter holds a list, empty meaning all. S.city / S.ch / S.sub are derived
+   from it - 'all', the single value, or 'multi' - so code that only makes sense for one pick
+   (deep dive, LRM, sub-channel bridge) can still ask for exactly one. */
+const SEL={city:[], ch:[], sub:[]};
+function selHas(k,v){ return SEL[k].length===0 || SEL[k].includes(v); }
+function isOne(k){ return SEL[k].length===1; }
+function syncS(){ for(const k of ['city','ch','sub']) S[k] = SEL[k].length===0 ? 'all' : (SEL[k].length===1 ? SEL[k][0] : 'multi'); }
+function selLabel(k, allLabel){ const a=SEL[k]; if(!a.length) return allLabel; if(a.length<=2) return a.join(' + '); return a.length+' '+({city:'clusters',ch:'channels',sub:'sub-channels'})[k]; }
+function selCities(){ return D.cities.filter(c=>selHas('city',c)); }
+function selChannels(){ return D.channels.filter(c=>selHas('ch',c)); }
 
 function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
@@ -250,9 +277,9 @@ function boot(){
   D.LAST = Math.max(...D.dates.filter(d=>+d.slice(5,7)===D.CUR).map(d=>+d.slice(8,10)));
   const last = D.dates.filter(d=>+d.slice(5,7)===D.CUR).sort().pop();
   document.getElementById('asof').textContent = new Date(last+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long'});
-  fill('fCity', D.cities, 'All 23 clusters');
-  fill('fCh', D.channels, 'All channels');
-  fill('fSub', subsFor(), 'All sub-channels');
+  msInit('city','fCity', D.cities, 'All 23 clusters');
+  msInit('ch','fCh', D.channels, 'All channels');
+  msInit('sub','fSub', subsFor(), 'All sub-channels');
   S.to = D.LAST;
   const days = [...Array(D.LAST)].map((_,i)=>String(i+1));
   const df=document.getElementById('fFrom'), dt=document.getElementById('fTo');
@@ -263,15 +290,70 @@ function boot(){
     try{ const sv=localStorage.getItem('bqlCmp'); if(sv==='mop'||sv==='lmtd') S.cmp=sv; }catch(e){}
     if(!D.PLAN){ const o=fc.querySelector('option[value=mop]'); o.disabled=true; o.textContent='MOP ('+D.CURN+' not loaded)'; S.cmp='lmtd'; }
     fc.value=S.cmp; }
-  ['fCity','fCh','fSub','fFrom','fTo','fCmp'].forEach(id=>document.getElementById(id).addEventListener('change', onFilter));
+  ['fFrom','fTo','fCmp'].forEach(id=>document.getElementById(id).addEventListener('change', onFilter));
+  document.addEventListener('click', ()=>msCloseAll());
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') msCloseAll(); });
   document.getElementById('app').addEventListener('click', e=>{
     const tr=e.target.closest('tr.rowlink'); if(!tr) return;
-    S.city=tr.dataset.city; syncSelects(); render();
+    SEL.city=[tr.dataset.city]; syncS(); msRefresh(); render();
     const dd=document.querySelector('#app section:last-of-type');
     if(dd) dd.scrollIntoView({behavior:'smooth', block:'start'});
   });
-  document.getElementById('fReset').addEventListener('click', ()=>{ S={city:'all',ch:'all',sub:'all',from:1,to:D.LAST,cmp:'lmtd'}; syncSelects(); fill('fSub', subsFor(), 'All sub-channels'); render(); });
+  document.getElementById('fReset').addEventListener('click', ()=>{ SEL.city=[]; SEL.ch=[]; SEL.sub=[]; S={city:'all',ch:'all',sub:'all',from:1,to:D.LAST,cmp:'lmtd'}; msItems('sub', subsFor()); msRefresh(); syncSelects(); render(); });
   render();
+}
+/* ---- multi-select dropdown: checkboxes, search, Clear; applies on Apply or on closing ---- */
+const MS={};
+function msInit(k, id, items, allLabel){
+  const el=document.getElementById(id);
+  MS[k]={el, items:items.slice().sort(), allLabel, pending:null};
+  el.innerHTML='<button type="button" class="msbtn" aria-haspopup="listbox" aria-expanded="false"></button>'+
+    '<div class="mspop" hidden><input class="mssearch" type="search" placeholder="Search" aria-label="Search">'+
+    '<div class="msacts"><button type="button" data-a="none">Clear (all)</button><span class="mscount"></span></div>'+
+    '<div class="mslist" role="listbox" aria-multiselectable="true"></div>'+
+    '<button type="button" class="msdone">Apply</button></div>';
+  const btn=el.querySelector('.msbtn'), pop=el.querySelector('.mspop'), q=el.querySelector('.mssearch');
+  btn.addEventListener('click', e=>{ e.stopPropagation(); const wasOpen=!pop.hidden; msCloseAll(); if(!wasOpen){ MS[k].pending=SEL[k].slice(); q.value=''; msList(k); pop.hidden=false; btn.setAttribute('aria-expanded','true'); q.focus(); } });
+  pop.addEventListener('click', e=>e.stopPropagation());
+  q.addEventListener('input', ()=>msList(k));
+  el.querySelector('[data-a=none]').addEventListener('click', ()=>{ MS[k].pending=[]; msList(k); });
+  el.querySelector('.mslist').addEventListener('change', e=>{
+    const v=e.target.value; const pn=MS[k].pending;
+    if(e.target.checked){ if(!pn.includes(v)) pn.push(v); } else { MS[k].pending=pn.filter(x=>x!==v); }
+    msCount(k);
+  });
+  el.querySelector('.msdone').addEventListener('click', ()=>msClose(k));
+  msRefresh();
+}
+function msList(k){
+  const m=MS[k], q=m.el.querySelector('.mssearch').value.trim().toLowerCase();
+  const its=m.items.filter(v=>!q || v.toLowerCase().includes(q));
+  m.el.querySelector('.mslist').innerHTML = its.length
+    ? its.map(v=>'<label><input type="checkbox" value="'+v.replace(/"/g,'&quot;')+'"'+(m.pending.includes(v)?' checked':'')+'> '+v+'</label>').join('')
+    : '<div class="msempty">No match</div>';
+  msCount(k);
+}
+function msCount(k){ const n=MS[k].pending.length; MS[k].el.querySelector('.mscount').textContent = n ? n+' selected' : 'none = all'; }
+function msClose(k){
+  const m=MS[k], pop=m.el.querySelector('.mspop');
+  if(pop.hidden) return;
+  pop.hidden=true; m.el.querySelector('.msbtn').setAttribute('aria-expanded','false');
+  const next=m.items.filter(v=>m.pending.includes(v));   /* keep list order */
+  const changed = next.length!==SEL[k].length || next.some(v=>!SEL[k].includes(v));
+  if(!changed) return;
+  SEL[k]=next;
+  if(k==='ch'){ SEL.sub=[]; msItems('sub', subsFor()); }
+  syncS(); msRefresh(); render();
+}
+function msCloseAll(){ for(const k in MS) msClose(k); }
+function msItems(k, items){ if(MS[k]){ MS[k].items=items.slice().sort(); SEL[k]=SEL[k].filter(v=>items.includes(v)); } }
+function msRefresh(){
+  for(const k in MS){
+    const b=MS[k].el.querySelector('.msbtn');
+    b.textContent=selLabel(k, MS[k].allLabel);
+    b.title=SEL[k].length ? SEL[k].join(', ') : MS[k].allLabel;
+    b.classList.toggle('on', SEL[k].length>0);
+  }
 }
 function fill(id, arr, allLabel){
   const el=document.getElementById(id); const cur=el.value;
@@ -280,23 +362,20 @@ function fill(id, arr, allLabel){
 }
 function subsFor(){
   const set=new Set();
-  for(const r of D.daily){ if(S.ch!=='all' && D.channels[r[2]]!==S.ch) continue; set.add(D.subs[r[3]]); }
+  for(const r of D.daily){ if(!selHas('ch',D.channels[r[2]])) continue; set.add(D.subs[r[3]]); }
   return [...set];
 }
-function syncSelects(){ document.getElementById('fCity').value=S.city; document.getElementById('fCh').value=S.ch; document.getElementById('fSub').value=S.sub; document.getElementById('fFrom').value=String(S.from); document.getElementById('fTo').value=String(S.to); document.getElementById('fCmp').value=S.cmp; }
+function syncSelects(){ document.getElementById('fFrom').value=String(S.from); document.getElementById('fTo').value=String(S.to); document.getElementById('fCmp').value=S.cmp; }
 function onFilter(){
-  const prevCh=S.ch;
-  S.city=document.getElementById('fCity').value; S.ch=document.getElementById('fCh').value; S.sub=document.getElementById('fSub').value;
   S.from=+document.getElementById('fFrom').value; S.to=+document.getElementById('fTo').value;
   S.cmp=document.getElementById('fCmp').value; try{ localStorage.setItem('bqlCmp', S.cmp); }catch(e){}
   if(S.from>S.to){ const t=S.from; S.from=S.to; S.to=t; syncSelects(); }
-  if(S.ch!==prevCh){ S.sub='all'; fill('fSub', subsFor(), 'All sub-channels'); document.getElementById('fSub').value='all'; }
   render();
 }
 function match(r){
-  if(S.city!=='all' && D.cities[r[1]]!==S.city) return false;
-  if(S.ch!=='all' && D.channels[r[2]]!==S.ch) return false;
-  if(S.sub!=='all' && D.subs[r[3]]!==S.sub) return false;
+  if(!selHas('city',D.cities[r[1]])) return false;
+  if(!selHas('ch',D.channels[r[2]])) return false;
+  if(!selHas('sub',D.subs[r[3]])) return false;
   return true;
 }
 function inPeriod(di, m, dmax, dmin){
@@ -337,8 +416,8 @@ function aopScoped(){
   if(!D.PLAN) return 0;
   let v=0;
   for(const a of D.aop){
-    if(S.city!=='all' && D.cities[a[0]]!==S.city) continue;
-    if(S.ch!=='all' && D.channels[a[1]]!==S.ch) continue;
+    if(!selHas('city',D.cities[a[0]])) continue;
+    if(!selHas('ch',D.channels[a[1]])) continue;
     v+=a[2];
   }
   return S.sub!=='all' ? null : v;
@@ -349,7 +428,7 @@ function render(){
   const mtd=totals(D.CUR), lmtd=totals(D.PRV);
   const dPct = lmtd.bql ? (mtd.bql-lmtd.bql)/lmtd.bql*100 : NaN;
   const proj = mtd.bql/pace;
-  const scopeTxt = [S.city==='all'?'All clusters':S.city, S.ch==='all'?'All channels':S.ch, S.sub==='all'?null:S.sub].filter(Boolean).join(' · ');
+  const scopeTxt = [selLabel('city','All clusters'), selLabel('ch','All channels'), (SEL.sub.length?selLabel('sub',''):null)].filter(Boolean).join(' · ');
   document.getElementById('scope').textContent = scopeTxt;
 
   let h='';
@@ -391,26 +470,26 @@ function render(){
 
   h+='<section id="s-channels"><h2>3 · Channels <span class="n">volume, mix and movement</span></h2>';
     h+='<p class="lede">Mix shows where inflow is concentrated; the bridge below shows exactly which channel moved the number against last month.</p>';
-    if(S.ch==='all'){
+    if(!isOne('ch')){
     h+='<div class="mixrow"><div class="ml">MTD</div><div class="mixbar">'+D.channels.map((c,i)=>{
       const v=(cm[c]?.bql||0), p=tot?v/tot*100:0; if(p<0.4) return '';
       return '<div class="mixseg" style="width:'+p+'%;background:'+chColor(i)+'">'+p.toFixed(1)+'%</div>';}).join('')+'</div></div>';
     const mixCity=S.city==='all'?null:S.city;
-    const benchMix = CMP()==='mop' ? Object.fromEntries(D.channels.map(c=>[c,mopFor(mixCity,c)])) : Object.fromEntries(D.channels.map(c=>[c,cl[c]?.bql||0]));
+    const benchMix = CMP()==='mop' ? Object.fromEntries(selChannels().map(c=>[c,mopFor(mixCity,c)])) : Object.fromEntries(D.channels.map(c=>[c,cl[c]?.bql||0]));
     const benchTot = Object.values(benchMix).reduce((a,b)=>a+b,0);
     h+='<div class="mixrow"><div class="ml">'+BL()+'</div><div class="mixbar" style="opacity:.6">'+D.channels.map((c,i)=>{
       const v=benchMix[c]||0, p=benchTot?v/benchTot*100:0; if(p<0.4) return '';
       return '<div class="mixseg" style="width:'+p+'%;background:'+chColor(i)+'">'+(p>7?p.toFixed(1)+'%':'')+'</div>';}).join('')+'</div></div>';
-    h+='<div class="keyrow">'+D.channels.map((c,i)=>'<span><i style="background:'+chColor(i)+'"></i>'+c+'</span>').join('')+'</div>';
+    h+='<div class="keyrow">'+D.channels.map((c,i)=>!selHas('ch',c)?'':'<span><i style="background:'+chColor(i)+'"></i>'+c+'</span>').join('')+'</div>';
     }
 
-    if(S.ch==='all'){
+    if(!isOne('ch')){
     h+='<h3>Channel detail <span class="n">vs '+BL()+'</span></h3>';
     const chCity=S.city==='all'?null:S.city;
     h+='<div class="tw"><table class="dt" style="min-width:640px"><tr><th>Channel</th><th>MTD</th><th>Mix</th><th>'+BL()+'</th><th>'+BL()+' mix</th><th>Δ</th><th>Δ%</th><th>Δ mix</th></tr>';
     let bT=0; const bv={};
-    for(const c of D.channels){ bv[c] = CMP()==='mop' ? mopFor(chCity,c) : (cl[c]?.bql||0); bT+=bv[c]; }
-    for(const c of D.channels){
+    for(const c of selChannels()){ bv[c] = CMP()==='mop' ? mopFor(chCity,c) : (cl[c]?.bql||0); bT+=bv[c]; }
+    for(const c of selChannels()){
       const v=cm[c]?.bql||0, b=bv[c];
       h+='<tr><td>'+c+'</td><td class="num">'+FMT(v)+'</td><td class="num">'+(tot?(v/tot*100).toFixed(1):'–')+'%</td>'+
          '<td class="num m">'+(b?FMT(b):'–')+'</td><td class="num m">'+(bT&&b?(b/bT*100).toFixed(1)+'%':'–')+'</td>'+
@@ -424,15 +503,15 @@ function render(){
   }
 
   /* ---- 3 CITIES ---- */
-  if(S.city==='all'){
+  if(!isOne('city')){
     const km=byKey(r=>D.cities[r[1]], D.CUR), kl=byKey(r=>D.cities[r[1]], D.PRV);
     const mOK=mopOk();
-    const rows=D.cities.map(c=>{
+    const rows=selCities().map(c=>{
       const v=km[c]?.bql||0, lv=kl[c]?.bql||0, mo=mOK?mopFor(c, S.ch==='all'?null:S.ch):0;
       const b = CMP()==='mop' ? mo : lv;
       return {c, v, lv, d:v-lv, dp:lv?(v-lv)/lv*100:NaN, mo, mp:mo?(v/mo-1)*100:NaN, b, bd:b?v-b:NaN, bp:b?(v-b)/b*100:NaN};
     }).sort((a,b)=>(isNaN(a.bd)?1e12:a.bd)-(isNaN(b.bd)?1e12:b.bd));
-    h+='<section id="s-cities"><h2>4 · Cities <span class="n">'+(S.ch==='all'?'all channels':S.ch)+(S.sub==='all'?'':' · '+S.sub)+'</span></h2>';
+    h+='<section id="s-cities"><h2>4 · Cities <span class="n">'+(selLabel('ch','all channels'))+(SEL.sub.length?' · '+selLabel('sub',''):'')+'</span></h2>';
     h+='<p class="lede">Ranked by leads gained or lost against '+(CMP()==='mop'?'MOP for the days selected':'the same span last month')+'. Pick a city above to drive the whole page.</p>';
     h+= D.PLAN ? quadSvg(rows) : '<div class="note">'+D.CURN+' MOP is not loaded yet, so the plan quadrant is hidden. Volume and movement against '+D.PRVN+' below are unaffected.</div>';
     h+='<p style="font-size:12px;color:var(--muted);margin:0 0 8px">Click any cluster to open its deep dive.</p>';
@@ -447,7 +526,7 @@ function render(){
     if(CMP()==='mop') h+='<div class="note" style="background:var(--sunk);color:var(--ink2)"><b>MOP is a flat daily target</b>, so MOP for any window is the daily target times the days selected.</div>';
 
     /* city x channel drop drivers */
-    if(S.ch==='all'){
+    if(!isOne('ch')){
       const drops=rows.filter(r=>r.d<0);
       if(drops.length){
         h+='<h3>Which channel drove each decline <span class="n">vs LMTD</span></h3><div class="tw"><table class="dt" style="min-width:620px"><tr><th>Cluster</th><th>Total Δ</th>'+D.channels.map(c=>'<th>'+c+'</th>').join('')+'<th>Driver</th></tr>';
@@ -455,7 +534,7 @@ function render(){
           const cells=D.channels.map(c=>{
             let a=0,b=0;
             for(const x of D.daily){ if(D.cities[x[1]]!==r.c || D.channels[x[2]]!==c) continue;
-              if(S.sub!=='all' && D.subs[x[3]]!==S.sub) continue;
+              if(!selHas('sub',D.subs[x[3]])) continue;
               if(inPeriod(x[0],D.CUR)) a+=x[5]; if(inPeriod(x[0],D.PRV)) b+=x[5]; }
             return {c, d:a-b, has:(a+b)>0};
           });
@@ -474,9 +553,9 @@ function render(){
   h+='<section id="s-quality"><h2>5 · Lead quality <span class="n">LQI buckets</span></h2>';
   h+='<p class="lede">BQL-weighted score distribution. Buckets: 0–2, &gt;2–5, &gt;5–7, &gt;7–9, &gt;9–10. Responds to every filter including the date range.</p>';
   h+='<div class="inlinefilters"><span class="ifl">Showing</span>'+
-     '<b>'+(S.city==='all'?'All 23 clusters':S.city)+'</b><span class="ifl">·</span>'+
-     '<b>'+(S.ch==='all'?'All channels':S.ch)+'</b><span class="ifl">·</span>'+
-     '<b>'+(S.sub==='all'?'All sub-channels':S.sub)+'</b><span class="ifl">·</span>'+
+     '<b>'+(selLabel('city','All 23 clusters'))+'</b><span class="ifl">·</span>'+
+     '<b>'+(selLabel('ch','All channels'))+'</b><span class="ifl">·</span>'+
+     '<b>'+(selLabel('sub','All sub-channels'))+'</b><span class="ifl">·</span>'+
      '<b>'+rangeLabel()+'</b>'+
      '<span class="ifl" style="margin-left:auto">Change these in the filter bar at the top</span></div>';
   h+=vBars(qualBy(()=>'all')['all'], 'Share of BQL by lead-score bucket. LMTD is the same dates in the previous month.');
@@ -494,7 +573,7 @@ function render(){
   h+=refSection();
 
   /* ---- 6 CITY DEEP DIVE ---- */
-  if(S.city!=='all') h+=deepDive();
+  if(isOne('city')) h+=deepDive();
 
   document.getElementById('app').innerHTML=h;
 }
@@ -505,8 +584,8 @@ function refSplit(m, city){
   for(const r of D.daily){
     if(D.channels[r[2]]!=='Referral') continue;
     if(!inPeriod(r[0], m)) continue;
-    if(city && D.cities[r[1]]!==city) continue;
-    if(S.city!=='all' && !city && D.cities[r[1]]!==S.city) continue;
+    if(city==='multi' ? !selHas('city',D.cities[r[1]]) : (city && D.cities[r[1]]!==city)) continue;
+    if(!city && !selHas('city',D.cities[r[1]])) continue;
     if(D.subs[r[3]]==='Sales') sales+=r[5]; else other+=r[5];
   }
   return {sales, other, tot:sales+other};
@@ -519,7 +598,7 @@ function refSplit(m, city){
 function lrmAgg(m, ch, city, sub){
   let bql=0, lrm=0;
   for(const r of D.daily){
-    if(city && D.cities[r[1]]!==city) continue;
+    if(city==='multi' ? !selHas('city',D.cities[r[1]]) : (city && D.cities[r[1]]!==city)) continue;
     if(ch   && D.channels[r[2]]!==ch) continue;
     if(sub  && D.subs[r[3]]!==sub) continue;
     if(!inPeriod(r[0], m)) continue;
@@ -529,7 +608,7 @@ function lrmAgg(m, ch, city, sub){
 }
 function lrmSection(){
   const city = S.city==='all' ? null : S.city;
-  const scope = S.city==='all' ? 'All 23 clusters' : S.city;
+  const scope = selLabel('city','All 23 clusters');
   const m = lrmAgg(D.CUR,'Digital',city), l = lrmAgg(D.PRV,'Digital',city);
 
   let h='<section id="s-lrm"><h2>2 · Lead sent to LRM <span class="n">Digital · '+scope+' · '+rangeLabel()+'</span></h2>';
@@ -546,8 +625,8 @@ function lrmSection(){
   h+=lrmDaily(city, scope);
 
   /* citywise movement table */
-  if(S.city==='all'){
-    const rows=D.cities.map(c=>{
+  if(!isOne('city')){
+    const rows=selCities().map(c=>{
       const a=lrmAgg(D.CUR,'Digital',c), b=lrmAgg(D.PRV,'Digital',c);
       return {c, bql:a.bql, lrm:a.lrm, p:a.pct, pl:b.pct, d:a.pct-b.pct};
     }).filter(r=>r.bql>0).sort((a,b)=>a.d-b.d);
@@ -576,7 +655,7 @@ function lrmDaily(city, scope){
     let bql=0, lrm=0;
     for(const r of D.daily){
       if(D.channels[r[2]]!=='Digital') continue;
-      if(city && D.cities[r[1]]!==city) continue;
+      if(city==='multi' ? !selHas('city',D.cities[r[1]]) : (city && D.cities[r[1]]!==city)) continue;
       if(D.mon[r[0]]!==D.CUR || D.day[r[0]]!==d) continue;
       bql+=r[5]; lrm+=r[6];
     }
@@ -607,7 +686,7 @@ function lrmDaily(city, scope){
 
 function refSection(){
   const m=refSplit(D.CUR), l=refSplit(D.PRV);
-  const scope = S.city==='all' ? 'All 23 clusters' : S.city;
+  const scope = selLabel('city','All 23 clusters');
   let h='<section id="s-referral"><h2>6 · SC-generated referrals <span class="n">'+scope+' · '+rangeLabel()+'</span></h2>';
   h+='<p class="lede">Referral BQL split by whether a Solar Consultant sourced it. Sales sub-source is SC-generated; everything else in the Referral channel is not. BTL-sourced referrals are excluded here because they now sit under BTL.</p>';
   h+='<div class="inlinefilters"><span class="ifl">Showing</span><b>'+scope+'</b><span class="ifl">·</span><b>'+rangeLabel()+' vs '+D.PRVN+' '+S.from+'–'+S.to+'</b><span class="ifl" style="margin-left:auto">City and date filters at the top drive this section</span></div>';
@@ -620,18 +699,18 @@ function refSection(){
   h+='</div>';
 
   /* per-city table source */
-  const rows=D.cities.map(c=>{
+  const rows=selCities().map(c=>{
     const a=refSplit(D.CUR,c), b=refSplit(D.PRV,c);
     return {c, s:a.sales, sl:b.sales, o:a.other, ol:b.other, d:a.sales-b.sales};
   }).filter(r=>r.s>0||r.sl>0).sort((a,b)=>b.s-a.s);
   /* chart only when a single city is in scope — an all-cluster bar stack is unreadable */
-  if(S.city!=='all'){
+  if(isOne('city')){
     h+=refCityBars(m, l, S.city);
   }
 
   h+='<h3>Split by cluster</h3><div class="tw"><table class="dt" style="min-width:700px">'+
      '<tr><th>Cluster</th><th>SC MTD</th><th>SC LMTD</th><th>Δ</th><th>Δ%</th><th>Other MTD</th><th>Other LMTD</th><th>Δ</th><th>SC share</th><th>Δ pp</th></tr>';
-  const src = S.city==='all' ? rows : [{c:S.city, s:m.sales, sl:l.sales, o:m.other, ol:l.other, d:m.sales-l.sales}];
+  const src = !isOne('city') ? rows : [{c:S.city, s:m.sales, sl:l.sales, o:m.other, ol:l.other, d:m.sales-l.sales}];
   for(const r of src){
     const tm=r.s+r.o, tl=r.sl+r.ol;
     const sh=tm?r.s/tm*100:0, shl=tl?r.sl/tl*100:0;
@@ -657,10 +736,10 @@ function deepDive(){
   let h='<section id="s-deep"><h2>7 · '+S.city+' deep dive <span class="n">'+rangeLabel()+'</span></h2>';
   h+='<p class="lede">Everything for this cluster — channel breakup against both benchmarks, then lead quality by channel and by sub-channel. Channel, sub-channel and date filters above all apply here.</p>';
 
-  const keep={ch:S.ch, sub:S.sub};
-  S.ch='all'; S.sub='all';
+  const keep={ch:SEL.ch, sub:SEL.sub};
+  SEL.ch=[]; SEL.sub=[];
   const cm=byKey(r=>D.channels[r[2]], D.CUR), cl=byKey(r=>D.channels[r[2]], D.PRV);
-  S.ch=keep.ch; S.sub=keep.sub;
+  SEL.ch=keep.ch; SEL.sub=keep.sub;
   const tot=Object.values(cm).reduce((a,b)=>a+b.bql,0), totL=Object.values(cl).reduce((a,b)=>a+b.bql,0);
 
   h+='<h3>Lead breakup by channel <span class="n">vs '+BL()+'</span></h3><div class="tw"><table class="dt" style="min-width:560px">'+
@@ -781,9 +860,9 @@ function bkColor(i){ return [css('--b1'),css('--b2'),css('--b3'),css('--b4'),css
 /* bucket row = [month, day, cityIdx, chIdx, subIdx, bucketIdx, bql, score*bql] */
 function bMatch(r){
   if(r[1]<S.from || r[1]>S.to) return false;
-  if(S.city!=='all' && D.cities[r[2]]!==S.city) return false;
-  if(S.ch!=='all' && D.channels[r[3]]!==S.ch) return false;
-  if(S.sub!=='all' && D.subs[r[4]]!==S.sub) return false;
+  if(!selHas('city',D.cities[r[2]])) return false;
+  if(!selHas('ch',D.channels[r[3]])) return false;
+  if(!selHas('sub',D.subs[r[4]])) return false;
   return true;
 }
 function qualStats(){
@@ -812,8 +891,8 @@ function mopFor(city, ch){
   if(!D.PLAN) return 0;
   let r=0;
   for(const m of D.mopRate){
-    if(city && D.cities[m[0]]!==city) continue;
-    if(ch && D.channels[m[1]]!==ch) continue;
+    if(city==='multi' ? !selHas('city',D.cities[m[0]]) : (city && D.cities[m[0]]!==city)) continue;
+    if(ch==='multi' ? !selHas('ch',D.channels[m[1]]) : (ch && D.channels[m[1]]!==ch)) continue;
     r+=m[2];
   }
   return r*rangeDays();
@@ -839,14 +918,14 @@ function insights(){
     const body=[];
     if(mopV>0) body.push('<b>'+FMT(mtd.bql)+' / '+FMT(mopV)+'</b> · '+(mtd.bql/mopV*100).toFixed(1)+'% of MOP · Δ '+(mtd.bql>=mopV?'+':'−')+FMT(Math.abs(mtd.bql-mopV)));
     body.push('LMTD '+FMT(lmtd.bql)+' → '+FMT(mtd.bql)+', '+(isFinite(dp)?DPC(dp):'–')+'. Daily run rate '+FMT(mtd.bql/rangeDays())+' vs '+FMT(lmtd.bql/rangeDays())+'.');
-    cards.push({t:'BQL · '+(S.ch==='all'?'overall':S.ch), dir:(mtd.bql>=lmtd.bql?1:-1),
+    cards.push({t:'BQL · '+(selLabel('ch','overall')), dir:(mtd.bql>=lmtd.bql?1:-1),
       v:FMT(mtd.bql), sub:(isFinite(dp)?PCT(dp):'')+' vs LMTD', body});
   }
 
   /* 2 — clusters driving the decline */
-  if(S.city==='all'){
+  if(!isOne('city')){
     const km=byKey(r=>D.cities[r[1]], D.CUR), kl=byKey(r=>D.cities[r[1]], D.PRV);
-    const losers=D.cities.map(c=>({c, v:km[c]?.bql||0, lv:kl[c]?.bql||0}))
+    const losers=selCities().map(c=>({c, v:km[c]?.bql||0, lv:kl[c]?.bql||0}))
       .map(x=>({...x, d:x.v-x.lv})).filter(x=>x.d<0).sort((a,b)=>a.d-b.d);
     const tot=losers.reduce((a,b)=>a+b.d,0);
     const body=[];
@@ -878,8 +957,8 @@ function insights(){
     if(a.bql){
       const body=['<b>'+FMT(a.lrm)+'</b> of '+FMT(a.bql)+' Digital BQL reached the LRM. '+FMT(a.bql-a.lrm)+' did not.',
                   'LMTD '+b.pct.toFixed(1)+'% → '+a.pct.toFixed(1)+'%.'];
-      if(S.city==='all'){
-        const worst=D.cities.map(c=>{const x=lrmAgg(D.CUR,'Digital',c), y=lrmAgg(D.PRV,'Digital',c);
+      if(!isOne('city')){
+        const worst=selCities().map(c=>{const x=lrmAgg(D.CUR,'Digital',c), y=lrmAgg(D.PRV,'Digital',c);
           return {c, p:x.pct, d:x.pct-y.pct, bql:x.bql};}).filter(x=>x.bql>200).sort((x,y)=>x.d-y.d).slice(0,3);
         worst.forEach(x=>body.push('<b>'+x.c+'</b> — '+x.p.toFixed(1)+'% ('+PP(x.d)+' vs LMTD) on '+FMT(x.bql)+' BQL.'));
       }
@@ -914,14 +993,14 @@ function navBar(){
   const items=[['s-insights','Insights'],['s-headline','1 · Headline']];
   if(S.ch==='Digital') items.push(['s-lrm','2 · Lead sent to LRM']);
   items.push(['s-channels','3 · Channels']);
-  if(S.city==='all') items.push(['s-cities','4 · Cities']);
+  if(!isOne('city')) items.push(['s-cities','4 · Cities']);
   items.push(['s-quality','5 · Lead quality']);
   items.push(['s-referral','6 · SC referrals']);
-  if(S.city!=='all') items.push(['s-deep','7 · '+S.city+' deep dive']);
+  if(isOne('city')) items.push(['s-deep','7 · '+S.city+' deep dive']);
   return '<nav class="jump">'+items.map(x=>'<a href="#'+x[0]+'">'+x[1]+'</a>').join('')+'</nav>';
 }
 function scopeLine(){
-  return [S.city==='all'?'All 23 clusters':S.city, S.ch==='all'?'all channels':S.ch, S.sub==='all'?null:S.sub].filter(Boolean).join(' · ');
+  return [selLabel('city','All 23 clusters'), selLabel('ch','all channels'), (SEL.sub.length?selLabel('sub',''):null)].filter(Boolean).join(' · ');
 }
 /* ---- SC referral, single city: vertical paired bars ---- */
 function refCityBars(m, l, city){
@@ -955,11 +1034,11 @@ function refCityBars(m, l, city){
    Keyed by channel on an all-channel view, by sub-channel once a channel is picked,
    so the same waterfall answers "which channel moved it" and "which sub-channel moved it". */
 function bridge(startV, endV){
-  const byCh = S.ch==='all';
+  const byCh = !isOne('ch');
   const keyFn = byCh ? (r=>D.channels[r[2]]) : (r=>D.subs[r[3]]);
   const useMop = CMP()==='mop' && byCh;
   const m=byKey(keyFn, D.CUR);
-  const l = useMop ? Object.fromEntries(D.channels.map(c=>[c,{bql:mopFor(S.city==='all'?null:S.city,c)}])) : byKey(keyFn, D.PRV);
+  const l = useMop ? Object.fromEntries(selChannels().map(c=>[c,{bql:mopFor(S.city==='all'?null:S.city,c)}])) : byKey(keyFn, D.PRV);
   if(useMop) startV = Object.values(l).reduce((a,b)=>a+b.bql,0);
   const SL = useMop ? 'MOP' : 'LMTD';
   const names=[...new Set([...Object.keys(m),...Object.keys(l)])];
