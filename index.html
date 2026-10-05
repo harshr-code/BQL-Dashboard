@@ -182,6 +182,7 @@ table.dt.compact td:first-child{font-size:11.5px;}
     <div class="fg"><label for="fSub">Sub-channel</label><select id="fSub"></select></div>
     <div class="fg"><label for="fFrom">From day</label><select id="fFrom" style="min-width:86px"></select></div>
     <div class="fg"><label for="fTo">To day</label><select id="fTo" style="min-width:86px"></select></div>
+    <div class="fg"><label for="fCmp">Compare vs</label><select id="fCmp"><option value="lmtd">LMTD</option><option value="mop">MOP</option></select></div>
     <button class="reset" id="fReset" type="button">Reset</button>
     <div class="scope" id="scope"></div>
   </div>
@@ -221,7 +222,7 @@ table.dt.compact td:first-child{font-size:11.5px;}
 
   <div class="foot">
     <b>Source.</b> Lead-level raw data, all rows. BQL is the sum of <code>bill_qualified</code>, not a row count. Delhi NCR merges Delhi, Noida, Ghaziabad, Gurgaon and Faridabad. Four channels are in scope: Digital, Referral, BTL and SolarPro. Cold Marketing, Newspaper, Experience Centre, IVR and Affiliate are excluded. Referral leads whose sub-source is BTL count under BTL, not Referral.<br>
-    <b>Benchmarks.</b> LMTD is the same day-span of the previous month. AOP is the full-month Bill Qualified Target from the business plan — Agra, Coimbatore, Jalgaon and Solapur carry no AOP line, so they are excluded from AOP comparisons only.<br>
+    <b>Benchmarks.</b> Switch with <i>Compare vs</i> in the filter bar. LMTD is the same day-span of the previous month. MOP is a flat daily target, so MOP for any window is the daily target times the days selected; it has no sub-channel split.<br>
     <b>Validation.</b> Every refresh checks the comparison month and each settled day against what is already published, and refuses to publish on a structural move. Late-arriving rows shift past days by a few leads.
   </div>
 </div>
@@ -231,7 +232,7 @@ const FMT = n => (n==null||isNaN(n)) ? '–' : Math.round(n).toLocaleString('en-
 const PCT = n => (n==null||isNaN(n)||!isFinite(n)) ? '–' : (n>=0?'+':'') + n.toFixed(1) + '%';
 const PP  = n => (n==null||isNaN(n)) ? '–' : (n>=0?'+':'') + n.toFixed(1) + 'pp';
 const cls = n => n>0 ? 'okc' : (n<0 ? 'bad' : '');
-let D=null, S={city:'all', ch:'all', sub:'all', from:1, to:99};
+let D=null, S={city:'all', ch:'all', sub:'all', from:1, to:99, cmp:'lmtd'};
 
 function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
@@ -258,14 +259,18 @@ function boot(){
   df.innerHTML = days.map(d=>'<option value="'+d+'">'+D.CURN+' '+d+'</option>').join('');
   dt.innerHTML = days.map(d=>'<option value="'+d+'">'+D.CURN+' '+d+'</option>').join('');
   df.value='1'; dt.value=String(D.LAST);
-  ['fCity','fCh','fSub','fFrom','fTo'].forEach(id=>document.getElementById(id).addEventListener('change', onFilter));
+  { const fc=document.getElementById('fCmp');
+    try{ const sv=localStorage.getItem('bqlCmp'); if(sv==='mop'||sv==='lmtd') S.cmp=sv; }catch(e){}
+    if(!D.PLAN){ const o=fc.querySelector('option[value=mop]'); o.disabled=true; o.textContent='MOP ('+D.CURN+' not loaded)'; S.cmp='lmtd'; }
+    fc.value=S.cmp; }
+  ['fCity','fCh','fSub','fFrom','fTo','fCmp'].forEach(id=>document.getElementById(id).addEventListener('change', onFilter));
   document.getElementById('app').addEventListener('click', e=>{
     const tr=e.target.closest('tr.rowlink'); if(!tr) return;
     S.city=tr.dataset.city; syncSelects(); render();
     const dd=document.querySelector('#app section:last-of-type');
     if(dd) dd.scrollIntoView({behavior:'smooth', block:'start'});
   });
-  document.getElementById('fReset').addEventListener('click', ()=>{ S={city:'all',ch:'all',sub:'all',from:1,to:D.LAST}; syncSelects(); fill('fSub', subsFor(), 'All sub-channels'); render(); });
+  document.getElementById('fReset').addEventListener('click', ()=>{ S={city:'all',ch:'all',sub:'all',from:1,to:D.LAST,cmp:'lmtd'}; syncSelects(); fill('fSub', subsFor(), 'All sub-channels'); render(); });
   render();
 }
 function fill(id, arr, allLabel){
@@ -278,11 +283,12 @@ function subsFor(){
   for(const r of D.daily){ if(S.ch!=='all' && D.channels[r[2]]!==S.ch) continue; set.add(D.subs[r[3]]); }
   return [...set];
 }
-function syncSelects(){ document.getElementById('fCity').value=S.city; document.getElementById('fCh').value=S.ch; document.getElementById('fSub').value=S.sub; document.getElementById('fFrom').value=String(S.from); document.getElementById('fTo').value=String(S.to); }
+function syncSelects(){ document.getElementById('fCity').value=S.city; document.getElementById('fCh').value=S.ch; document.getElementById('fSub').value=S.sub; document.getElementById('fFrom').value=String(S.from); document.getElementById('fTo').value=String(S.to); document.getElementById('fCmp').value=S.cmp; }
 function onFilter(){
   const prevCh=S.ch;
   S.city=document.getElementById('fCity').value; S.ch=document.getElementById('fCh').value; S.sub=document.getElementById('fSub').value;
   S.from=+document.getElementById('fFrom').value; S.to=+document.getElementById('fTo').value;
+  S.cmp=document.getElementById('fCmp').value; try{ localStorage.setItem('bqlCmp', S.cmp); }catch(e){}
   if(S.from>S.to){ const t=S.from; S.from=S.to; S.to=t; syncSelects(); }
   if(S.ch!==prevCh){ S.sub='all'; fill('fSub', subsFor(), 'All sub-channels'); document.getElementById('fSub').value='all'; }
   render();
@@ -340,7 +346,7 @@ function aopScoped(){
 
 function render(){
   const L=D.LAST, DIM=D.DIM, pace=rangeDays()/DIM;
-  const mtd=totals(D.CUR), lmtd=totals(D.PRV), aop=aopScoped();
+  const mtd=totals(D.CUR), lmtd=totals(D.PRV);
   const dPct = lmtd.bql ? (mtd.bql-lmtd.bql)/lmtd.bql*100 : NaN;
   const proj = mtd.bql/pace;
   const scopeTxt = [S.city==='all'?'All clusters':S.city, S.ch==='all'?'All channels':S.ch, S.sub==='all'?null:S.sub].filter(Boolean).join(' · ');
@@ -350,31 +356,29 @@ function render(){
   h+=insights();
   h+=navBar();
   /* ---- 1 INDIA / SCOPE HEADLINE ---- */
-  h+='<section id="s-headline" style="margin-top:20px"><h2>1 · Headline <span class="n">'+scopeTxt+' · '+rangeLabel()+' vs '+D.PRVN+' '+S.from+'–'+S.to+'</span></h2>';
+  h+='<section id="s-headline" style="margin-top:20px"><h2>1 · Headline <span class="n">'+scopeTxt+' · '+rangeLabel()+' vs '+benchSpan()+'</span></h2>';
   h+='<div class="heroes">';
-  const mopV = S.sub!=='all' ? 0 : mopFor(S.city==='all'?null:S.city, S.ch==='all'?null:S.ch);
+  const cmp=CMP(), bl=BL();
+  const bv = cmp==='mop' ? (S.sub!=='all' ? 0 : mopFor(S.city==='all'?null:S.city, S.ch==='all'?null:S.ch)) : lmtd.bql;
+  const bd = mtd.bql-bv, bp = bv ? bd/bv*100 : NaN;
   h+=tile('BQL MTD', FMT(mtd.bql), FMT(mtd.leads)+' leads · '+(mtd.leads?(mtd.bql/mtd.leads*100).toFixed(1):'–')+'% qualify');
-  h+=tile('vs LMTD', PCT(dPct), FMT(mtd.bql-lmtd.bql)+' leads · LMTD '+FMT(lmtd.bql), dPct>=0?'g':'c');
-  h+=mopV>0
-      ? tile('vs MOP', PCT((mtd.bql/mopV-1)*100), FMT(mtd.bql-mopV)+' leads · MOP '+FMT(mopV), (mtd.bql>=mopV)?'g':'c')
-      : tile('vs MOP', '–', S.sub!=='all' ? 'no MOP at sub-channel' : (D.PLAN ? 'no MOP for this scope' : D.CURN+' MOP not loaded yet'));
-  const aopPace = aop ? aop*pace : 0;   /* AOP is a full-month plan — prorate to the window */
-  h+=aop
-      ? tile('AOP target', FMT(aop), FMT(aopPace)+' to date · '+(aopPace?DPC((mtd.bql/aopPace-1)*100):'–'), (mtd.bql>=aopPace)?'g':'c')
-      : tile('AOP target', '–', S.sub!=='all' ? 'no AOP at sub-channel' : (D.PLAN ? 'no AOP for this scope' : D.CURN+' AOP not loaded yet'));
+  h+= bv>0 ? tile(bl, FMT(bv), cmp==='mop' ? 'daily target × '+rangeDays()+' days' : D.PRVN+' '+S.from+'–'+S.to)
+           : tile(bl, '–', cmp==='mop' ? (S.sub!=='all' ? 'no MOP at sub-channel' : 'no MOP for this scope') : 'nothing last month');
+  h+=tile('vs '+bl, bv?PCT(bp):'–', cmp==='mop' && bv ? (mtd.bql/bv*100).toFixed(0)+'% of MOP' : (bv?'against '+D.PRVN:''), bp>=0?'g':'c');
+  h+=tile('Δ leads', bv?(bd>=0?'+':'−')+FMT(Math.abs(bd)):'–', 'MTD minus '+bl, bd>=0?'g':'c');
   h+='</div>';
-  h+='<figcaption style="margin-top:8px"><b>AOP target</b> is the full-month plan for this scope. <b>to date</b> prorates it to the '+rangeDays()+' days shown; the percentage is actual against that prorated figure — green means ahead of plan pace, red behind.</figcaption>';
 
 
   /* ---- DoD, collapsible ---- */
-  h+='<details class="fold" open><summary>Daily BQL · '+D.CURN+' vs '+D.PRVN+'<span class="n">last 10 days · click to collapse</span></summary><div class="foldbody">';
+  h+='<details class="fold" open><summary>Daily BQL · '+(CMP()==='mop'?'vs daily MOP':D.CURN+' vs '+D.PRVN)+'<span class="n">last 10 days · click to collapse</span></summary><div class="foldbody">';
   h+=dodTable();
   h+='</div></details>';
 
   /* last 7 days vs same 7 last month */
   const l7=totals(D.CUR,L,L-6), p7=totals(D.PRV,L,L-6);
+  if(CMP()==='mop'){ const m7=(S.sub!=='all'?0:mopFor(S.city==='all'?null:S.city,S.ch==='all'?null:S.ch))/rangeDays()*7; if(m7) h+='<div class="note"><b>Last 7 days.</b> '+D.CURN+' '+(L-6)+'–'+L+' delivered <b>'+FMT(l7.bql)+'</b> BQL against a MOP of <b>'+FMT(m7)+'</b> — '+PCT((l7.bql/m7-1)*100)+'. Daily average '+FMT(l7.bql/7)+' vs '+FMT(m7/7)+' target.</div>'; } else {
   const d7 = p7.bql ? (l7.bql-p7.bql)/p7.bql*100 : NaN;
-  h+='<div class="note"><b>Last 7 days.</b> '+D.CURN+' '+(L-6)+'–'+L+' delivered <b>'+FMT(l7.bql)+'</b> BQL against <b>'+FMT(p7.bql)+'</b> for '+D.PRVN+' '+(L-6)+'–'+L+' — '+PCT(d7)+', '+FMT(l7.bql-p7.bql)+' leads. Daily average '+FMT(l7.bql/7)+' vs '+FMT(p7.bql/7)+'.</div>';
+  h+='<div class="note"><b>Last 7 days.</b> '+D.CURN+' '+(L-6)+'–'+L+' delivered <b>'+FMT(l7.bql)+'</b> BQL against <b>'+FMT(p7.bql)+'</b> for '+D.PRVN+' '+(L-6)+'–'+L+' — '+PCT(d7)+', '+FMT(l7.bql-p7.bql)+' leads. Daily average '+FMT(l7.bql/7)+' vs '+FMT(p7.bql/7)+'.</div>'; }
   h+='</section>';
 
   /* ---- 2 LEAD SENT TO LRM — Digital only ---- */
@@ -391,25 +395,30 @@ function render(){
     h+='<div class="mixrow"><div class="ml">MTD</div><div class="mixbar">'+D.channels.map((c,i)=>{
       const v=(cm[c]?.bql||0), p=tot?v/tot*100:0; if(p<0.4) return '';
       return '<div class="mixseg" style="width:'+p+'%;background:'+chColor(i)+'">'+p.toFixed(1)+'%</div>';}).join('')+'</div></div>';
-    h+='<div class="mixrow"><div class="ml">LMTD</div><div class="mixbar" style="opacity:.6">'+D.channels.map((c,i)=>{
-      const v=(cl[c]?.bql||0), p=totL?v/totL*100:0; if(p<0.4) return '';
+    const mixCity=S.city==='all'?null:S.city;
+    const benchMix = CMP()==='mop' ? Object.fromEntries(D.channels.map(c=>[c,mopFor(mixCity,c)])) : Object.fromEntries(D.channels.map(c=>[c,cl[c]?.bql||0]));
+    const benchTot = Object.values(benchMix).reduce((a,b)=>a+b,0);
+    h+='<div class="mixrow"><div class="ml">'+BL()+'</div><div class="mixbar" style="opacity:.6">'+D.channels.map((c,i)=>{
+      const v=benchMix[c]||0, p=benchTot?v/benchTot*100:0; if(p<0.4) return '';
       return '<div class="mixseg" style="width:'+p+'%;background:'+chColor(i)+'">'+(p>7?p.toFixed(1)+'%':'')+'</div>';}).join('')+'</div></div>';
     h+='<div class="keyrow">'+D.channels.map((c,i)=>'<span><i style="background:'+chColor(i)+'"></i>'+c+'</span>').join('')+'</div>';
     }
 
     if(S.ch==='all'){
-    h+='<h3>Channel detail</h3><div class="tw"><table class="dt" style="min-width:760px"><tr><th>Channel</th><th>MTD</th><th>Mix</th><th>LMTD</th><th>Mix</th><th>Δ</th><th>Δ%</th><th>Δ mix</th><th>AOP</th><th>vs pace</th></tr>';
+    h+='<h3>Channel detail <span class="n">vs '+BL()+'</span></h3>';
+    const chCity=S.city==='all'?null:S.city;
+    h+='<div class="tw"><table class="dt" style="min-width:640px"><tr><th>Channel</th><th>MTD</th><th>Mix</th><th>'+BL()+'</th><th>'+BL()+' mix</th><th>Δ</th><th>Δ%</th><th>Δ mix</th></tr>';
+    let bT=0; const bv={};
+    for(const c of D.channels){ bv[c] = CMP()==='mop' ? mopFor(chCity,c) : (cl[c]?.bql||0); bT+=bv[c]; }
     for(const c of D.channels){
-      const v=cm[c]?.bql||0, lv=cl[c]?.bql||0, a=aopFor(S.city==='all'?null:S.city, c), exp=a*pace;
+      const v=cm[c]?.bql||0, b=bv[c];
       h+='<tr><td>'+c+'</td><td class="num">'+FMT(v)+'</td><td class="num">'+(tot?(v/tot*100).toFixed(1):'–')+'%</td>'+
-         '<td class="num m">'+FMT(lv)+'</td><td class="num m">'+(totL?(lv/totL*100).toFixed(1):'–')+'%</td>'+
-         '<td class="num">'+DLT(v-lv)+'</td><td class="num">'+(lv?DPC((v-lv)/lv*100):'–')+'</td>'+
-         '<td class="num">'+(tot&&totL?DPP(v/tot*100-lv/totL*100):'–')+'</td>'+
-         '<td class="num m">'+(a?FMT(a):'–')+'</td><td class="num">'+(a?DPC((v/exp-1)*100):'–')+'</td></tr>';
+         '<td class="num m">'+(b?FMT(b):'–')+'</td><td class="num m">'+(bT&&b?(b/bT*100).toFixed(1)+'%':'–')+'</td>'+
+         '<td class="num">'+(b?DLT(v-b):'–')+'</td><td class="num">'+(b?DPC((v-b)/b*100):'–')+'</td>'+
+         '<td class="num">'+(tot&&bT&&b?DPP(v/tot*100-b/bT*100):'–')+'</td></tr>';
     }
-    h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(tot)+'</td><td class="num">100%</td><td class="num">'+FMT(totL)+'</td><td class="num">100%</td><td class="num">'+DLT(tot-totL)+'</td><td class="num">'+DPC((tot-totL)/totL*100)+'</td><td class="num">–</td><td class="num">'+FMT(aopScoped())+'</td><td class="num">'+DPC((tot/(aopScoped()*pace)-1)*100)+'</td></tr></table></div>';
+    h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(tot)+'</td><td class="num">100%</td><td class="num">'+FMT(bT)+'</td><td class="num">100%</td><td class="num">'+DLT(tot-bT)+'</td><td class="num">'+(bT?DPC((tot-bT)/bT*100):'–')+'</td><td class="num">–</td></tr></table></div>';
     }
-
     h+=bridge(totL, tot);
     h+='</section>';
   }
@@ -419,33 +428,29 @@ function render(){
     const km=byKey(r=>D.cities[r[1]], D.CUR), kl=byKey(r=>D.cities[r[1]], D.PRV);
     const mOK=mopOk();
     const rows=D.cities.map(c=>{
-      const v=km[c]?.bql||0, lv=kl[c]?.bql||0, a=aopFor(c, S.ch==='all'?null:S.ch), mo=mOK?mopFor(c, S.ch==='all'?null:S.ch):0;
-      return {c, v, lv, d:v-lv, dp:lv?(v-lv)/lv*100:NaN, a, mo, mp:mo?(v/mo-1)*100:NaN, ap:a?v/a*100:NaN};
-    }).sort((a,b)=>a.d-b.d);
+      const v=km[c]?.bql||0, lv=kl[c]?.bql||0, mo=mOK?mopFor(c, S.ch==='all'?null:S.ch):0;
+      const b = CMP()==='mop' ? mo : lv;
+      return {c, v, lv, d:v-lv, dp:lv?(v-lv)/lv*100:NaN, mo, mp:mo?(v/mo-1)*100:NaN, b, bd:b?v-b:NaN, bp:b?(v-b)/b*100:NaN};
+    }).sort((a,b)=>(isNaN(a.bd)?1e12:a.bd)-(isNaN(b.bd)?1e12:b.bd));
     h+='<section id="s-cities"><h2>4 · Cities <span class="n">'+(S.ch==='all'?'all channels':S.ch)+(S.sub==='all'?'':' · '+S.sub)+'</span></h2>';
-    h+='<p class="lede">Ranked by leads gained or lost against the same span last month. Pick a city above to drive the whole page.</p>';
-    h+= D.PLAN ? quadSvg(rows) : '<div class="note">'+D.CURN+' MOP/AOP targets are not loaded yet, so the plan quadrant is hidden. Volume and movement against '+D.PRVN+' below are unaffected.</div>';
+    h+='<p class="lede">Ranked by leads gained or lost against '+(CMP()==='mop'?'MOP for the days selected':'the same span last month')+'. Pick a city above to drive the whole page.</p>';
+    h+= D.PLAN ? quadSvg(rows) : '<div class="note">'+D.CURN+' MOP is not loaded yet, so the plan quadrant is hidden. Volume and movement against '+D.PRVN+' below are unaffected.</div>';
     h+='<p style="font-size:12px;color:var(--muted);margin:0 0 8px">Click any cluster to open its deep dive.</p>';
-    h+='<div class="tw"><table class="dt" style="min-width:760px"><tr><th>Cluster</th><th>MTD</th><th>LMTD</th><th>Δ</th><th>Δ%</th><th>MOP</th><th>Δ vs MOP</th><th>% MOP</th><th>AOP full month</th><th>% of AOP</th><th>Group</th></tr>';
+    h+='<div class="tw"><table class="dt" style="min-width:560px"><tr><th>Cluster</th><th>MTD</th><th>'+BL()+'</th><th>Δ</th><th>Δ%</th><th>Group</th></tr>';
     for(const r of rows){
-      const act = r.d<0 && ((!isNaN(r.mp) && r.mp<0) || (isNaN(r.mp) && r.d<0));
-      const grp = r.d<0 ? '<span class="chip a">Act</span>' : (r.d>=0 ? '<span class="chip o">Growing</span>' : '<span class="chip w">Watch</span>');
-      h+='<tr class="rowlink'+(r.d<0?' hi':'')+'" data-city="'+r.c+'"><td>'+r.c+'</td><td class="num">'+FMT(r.v)+'</td><td class="num m">'+FMT(r.lv)+'</td>'+
-         '<td class="num '+cls(r.d)+'">'+FMT(r.d)+'</td><td class="num '+cls(r.d)+'">'+PCT(r.dp)+'</td>'+
-         '<td class="num m">'+(r.mo?FMT(r.mo):'–')+'</td>'+
-         '<td class="num '+(r.mo?cls(r.v-r.mo):'')+'">'+(r.mo?FMT(r.v-r.mo):'–')+'</td>'+
-         '<td class="num '+(r.mo?cls(r.v-r.mo):'')+'">'+(r.mo?(r.v/r.mo*100).toFixed(0)+'%':'–')+'</td>'+
-         '<td class="num m">'+(r.a?FMT(r.a):'–')+'</td>'+
-         '<td class="num m">'+(r.a?r.ap.toFixed(0)+'%':'–')+'</td><td>'+grp+'</td></tr>';
+      const has=!isNaN(r.bd);
+      const grp = !has ? '<span class="chip w">No '+BL()+'</span>' : (r.bd<0 ? '<span class="chip a">Act</span>' : '<span class="chip o">'+(CMP()==='mop'?'Ahead':'Growing')+'</span>');
+      h+='<tr class="rowlink'+(has&&r.bd<0?' hi':'')+'" data-city="'+r.c+'"><td>'+r.c+'</td><td class="num">'+FMT(r.v)+'</td><td class="num m">'+(r.b?FMT(r.b):'–')+'</td>'+
+         '<td class="num">'+(has?DLT(r.bd):'–')+'</td><td class="num">'+(has?DPC(r.bp):'–')+'</td><td>'+grp+'</td></tr>';
     }
     h+='</table></div>';
-    h+='<div class="note" style="background:var(--sunk);color:var(--ink2)"><b>MOP is the day-level target and moves with the date range</b> — it is a flat daily plan, so MOP for any window is the daily target times the days selected. <b>AOP is the full-month plan, shown unaltered</b>; "% of AOP" is simply how much of the month\u2019s plan has landed so far, never prorated.</div>';
+    if(CMP()==='mop') h+='<div class="note" style="background:var(--sunk);color:var(--ink2)"><b>MOP is a flat daily target</b>, so MOP for any window is the daily target times the days selected.</div>';
 
     /* city x channel drop drivers */
     if(S.ch==='all'){
       const drops=rows.filter(r=>r.d<0);
       if(drops.length){
-        h+='<h3>Which channel drove each decline</h3><div class="tw"><table class="dt" style="min-width:620px"><tr><th>Cluster</th><th>Total Δ</th>'+D.channels.map(c=>'<th>'+c+'</th>').join('')+'<th>Driver</th></tr>';
+        h+='<h3>Which channel drove each decline <span class="n">vs LMTD</span></h3><div class="tw"><table class="dt" style="min-width:620px"><tr><th>Cluster</th><th>Total Δ</th>'+D.channels.map(c=>'<th>'+c+'</th>').join('')+'<th>Driver</th></tr>';
         for(const r of drops){
           const cells=D.channels.map(c=>{
             let a=0,b=0;
@@ -658,28 +663,16 @@ function deepDive(){
   S.ch=keep.ch; S.sub=keep.sub;
   const tot=Object.values(cm).reduce((a,b)=>a+b.bql,0), totL=Object.values(cl).reduce((a,b)=>a+b.bql,0);
 
-  const mOK=mopOk();
-  h+='<h3>Lead breakup by channel</h3><div class="tw"><table class="dt" style="min-width:820px">'+
-     '<tr><th>Channel</th><th>MTD</th><th>Mix</th><th>LMTD</th><th>Δ</th><th>Δ%</th><th>MOP</th><th>Δ vs MOP</th><th>% MOP</th><th>AOP full month</th></tr>';
+  h+='<h3>Lead breakup by channel <span class="n">vs '+BL()+'</span></h3><div class="tw"><table class="dt" style="min-width:560px">'+
+     '<tr><th>Channel</th><th>MTD</th><th>Mix</th><th>'+BL()+'</th><th>Δ</th><th>Δ%</th></tr>';
+  let bT=0;
   for(const c of D.channels){
-    const v=cm[c]?.bql||0, lv=cl[c]?.bql||0, a=aopFor(S.city,c), mo=mOK?mopFor(S.city,c):0;
+    const v=cm[c]?.bql||0, b = CMP()==='mop' ? mopFor(S.city,c) : (cl[c]?.bql||0); bT+=b;
     h+='<tr><td>'+c+'</td><td class="num">'+FMT(v)+'</td><td class="num">'+(tot?(v/tot*100).toFixed(1):'–')+'%</td>'+
-       '<td class="num m">'+FMT(lv)+'</td>'+
-       '<td class="num '+cls(v-lv)+'">'+FMT(v-lv)+'</td><td class="num '+cls(v-lv)+'">'+(lv?PCT((v-lv)/lv*100):'–')+'</td>'+
-       '<td class="num m">'+(mOK&&mo?FMT(mo):'–')+'</td>'+
-       '<td class="num '+(mOK&&mo?cls(v-mo):'')+'">'+(mOK&&mo?FMT(v-mo):'–')+'</td>'+
-       '<td class="num '+(mOK&&mo?cls(v-mo):'')+'">'+(mOK&&mo?(v/mo*100).toFixed(0)+'%':'–')+'</td>'+
-       '<td class="num m">'+(a?FMT(a):'–')+'</td></tr>';
+       '<td class="num m">'+(b?FMT(b):'–')+'</td><td class="num">'+(b?DLT(v-b):'–')+'</td><td class="num">'+(b?DPC((v-b)/b*100):'–')+'</td></tr>';
   }
-  const ta=aopFor(S.city,null), tm=mOK?mopFor(S.city,null):0;
-  h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(tot)+'</td><td class="num">100%</td><td class="num">'+FMT(totL)+'</td>'+
-     '<td class="num '+cls(tot-totL)+'">'+FMT(tot-totL)+'</td><td class="num '+cls(tot-totL)+'">'+(totL?PCT((tot-totL)/totL*100):'–')+'</td>'+
-     '<td class="num">'+(mOK&&tm?FMT(tm):'–')+'</td>'+
-     '<td class="num '+(mOK&&tm?cls(tot-tm):'')+'">'+(mOK&&tm?FMT(tot-tm):'–')+'</td>'+
-     '<td class="num '+(mOK&&tm?cls(tot-tm):'')+'">'+(mOK&&tm?(tot/tm*100).toFixed(0)+'%':'–')+'</td>'+
-     '<td class="num">'+(ta?FMT(ta):'–')+'</td></tr></table></div>';
-  if(false) h+='';
-  else if(!ta) h+='<div class="note">This cluster has no AOP line in the business plan, so the AOP column is blank. MOP is unaffected.</div>';
+  h+='<tr class="tot"><td>Total</td><td class="num">'+FMT(tot)+'</td><td class="num">100%</td><td class="num">'+FMT(bT)+'</td>'+
+     '<td class="num">'+DLT(tot-bT)+'</td><td class="num">'+(bT?DPC((tot-bT)/bT*100):'–')+'</td></tr></table></div>';
 
   /* leads delivered to LRM — Digital only */
   {
@@ -737,7 +730,7 @@ function quadSvg(rows){
   const maxV=Math.max(...pts.map(p=>p.v));
   const rad=v=>4+Math.sqrt(v/maxV)*9;
   const colOf=p=>(p.dp<0&&p.mp<0)?'var(--crit)':((p.dp>=0&&p.mp>=0)?'var(--good)':'var(--accent)');
-  let s='<figure class="chartbox"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Clusters plotted by BQL change versus last month against BQL versus AOP pace. Bottom-left quadrant needs action.">';
+  let s='<figure class="chartbox"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Clusters plotted by BQL change versus last month against BQL versus MOP. Bottom-left quadrant needs action.">';
   s+='<rect x="'+L+'" y="'+zy+'" width="'+(zx-L)+'" height="'+(B-zy)+'" fill="var(--crittint)"/>';
   s+='<rect x="'+zx+'" y="'+T+'" width="'+(R-zx)+'" height="'+(zy-T)+'" fill="var(--goodtint)"/>';
   s+='<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+B+'" stroke="var(--line2)"/><line x1="'+L+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
@@ -768,7 +761,7 @@ function quadSvg(rows){
   s+='<circle cx="'+(L+186)+'" cy="'+(H-26)+'" r="5" fill="var(--accent)"/><text x="'+(L+198)+'" y="'+(H-22)+'">Mixed</text>';
   s+='<circle cx="'+(L+276)+'" cy="'+(H-26)+'" r="5" fill="var(--good)"/><text x="'+(L+288)+'" y="'+(H-22)+'">Growing &amp; ahead of MOP</text>';
   s+='<text x="'+R+'" y="'+(H-22)+'" text-anchor="end">Dot size = BQL volume</text></g>';
-  s+='</svg><figcaption>AOP prorated to '+rangeDays()+' of 30 days. Clusters without an AOP line are listed in the table but cannot be plotted.</figcaption></figure>';
+  s+='</svg><figcaption>Horizontal: BQL against the same span last month. Vertical: BQL against MOP for the days selected. Clusters without a MOP line are in the table but cannot be plotted.</figcaption></figure>';
   return s;
 }
 
@@ -826,6 +819,10 @@ function mopFor(city, ch){
   return r*rangeDays();
 }
 function mopOk(){ return true; }
+/* ---- benchmark switch: LMTD or MOP. MOP falls back to LMTD when this month's plan is not loaded. ---- */
+function CMP(){ return (S.cmp==='mop' && D.PLAN) ? 'mop' : 'lmtd'; }
+function BL(){ return CMP()==='mop' ? 'MOP' : 'LMTD'; }
+function benchSpan(){ return CMP()==='mop' ? 'MOP, '+rangeDays()+' days' : D.PRVN+' '+S.from+'–'+S.to; }
 
 /* ---- auto-generated insight block ----
    Mirrors the Daily Sales Report house style: direction, the number, the movement,
@@ -960,7 +957,11 @@ function refCityBars(m, l, city){
 function bridge(startV, endV){
   const byCh = S.ch==='all';
   const keyFn = byCh ? (r=>D.channels[r[2]]) : (r=>D.subs[r[3]]);
-  const m=byKey(keyFn, D.CUR), l=byKey(keyFn, D.PRV);
+  const useMop = CMP()==='mop' && byCh;
+  const m=byKey(keyFn, D.CUR);
+  const l = useMop ? Object.fromEntries(D.channels.map(c=>[c,{bql:mopFor(S.city==='all'?null:S.city,c)}])) : byKey(keyFn, D.PRV);
+  if(useMop) startV = Object.values(l).reduce((a,b)=>a+b.bql,0);
+  const SL = useMop ? 'MOP' : 'LMTD';
   const names=[...new Set([...Object.keys(m),...Object.keys(l)])];
   let steps=names.map(n=>({n, d:(m[n]?.bql||0)-(l[n]?.bql||0)})).filter(x=>x.d!==0);
   steps.sort((a,b)=>b.d-a.d);
@@ -987,14 +988,14 @@ function bridge(startV, endV){
   const py=v=>B-((v-yMin)/yS)*(B-T);
   const label=(x,y,t,cl,sz)=>'<text x="'+x+'" y="'+y+'" font-size="'+(sz||10.5)+'" font-weight="600" fill="'+cl+'" text-anchor="middle" font-family="IBM Plex Sans,sans-serif">'+t+'</text>';
 
-  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="BQL movement from last month to date, bridged by '+(byCh?'channel':'sub-channel')+'.">';
+  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="BQL movement from '+(useMop?'MOP':'last month')+' to date, bridged by '+(byCh?'channel':'sub-channel')+'.">';
   s+='<line x1="'+L+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--line2)"/>';
 
   /* opening */
   let x=L+gap;
-  s+='<rect x="'+x+'" y="'+py(startV)+'" width="'+w+'" height="'+(B-py(startV))+'" fill="var(--ink2)" rx="2"><title>LMTD '+FMT(startV)+'</title></rect>';
+  s+='<rect x="'+x+'" y="'+py(startV)+'" width="'+w+'" height="'+(B-py(startV))+'" fill="var(--ink2)" rx="2"><title>'+SL+' '+FMT(startV)+'</title></rect>';
   s+=label(x+w/2, py(startV)-7, FMT(startV), 'var(--ink)', 11.5);
-  s+=label(x+w/2, B+16, 'LMTD', 'var(--muted)');
+  s+=label(x+w/2, B+16, SL, 'var(--muted)');
   let prevX=x+w, prevY=py(startV);
 
   bars.forEach(b=>{
@@ -1022,7 +1023,7 @@ function bridge(startV, endV){
   s+='</svg>';
 
   let t='<div class="tw" style="margin-top:10px"><table class="dt compact" style="min-width:480px">'+
-        '<tr><th>'+(byCh?'Channel':'Sub-channel')+'</th><th>LMTD</th><th>'+rangeLabel()+'</th><th>Δ</th><th>Δ%</th><th>Share of net</th></tr>';
+        '<tr><th>'+(byCh?'Channel':'Sub-channel')+'</th><th>'+SL+'</th><th>'+rangeLabel()+'</th><th>Δ</th><th>Δ%</th><th>Share of net</th></tr>';
   bars.forEach(b=>{
     const lv=l[b.n]?.bql||0, mv=m[b.n]?.bql||0;
     t+='<tr><td>'+b.n+'</td><td class="num m">'+FMT(b.roll?'':lv)+'</td><td class="num">'+FMT(b.roll?'':mv)+'</td>'+
@@ -1032,9 +1033,9 @@ function bridge(startV, endV){
   t+='<tr class="tot"><td>Net movement</td><td class="num">'+FMT(startV)+'</td><td class="num">'+FMT(endV)+'</td>'+
      '<td class="num">'+DLT(net)+'</td><td class="num">'+(startV?DPC(net/startV*100):'–')+'</td><td class="num">100%</td></tr></table></div>';
 
-  return '<h3>BQL movement · LMTD → '+rangeLabel()+' <span class="n">bridged by '+(byCh?'channel':'sub-channel')+'</span></h3>'+
+  return '<h3>BQL movement · '+SL+' → '+rangeLabel()+' <span class="n">bridged by '+(byCh?'channel':'sub-channel')+'</span></h3>'+
          '<div class="chartbox">'+s+'</div>'+t+
-         '<figcaption style="margin-top:8px">Green bars added BQL against the same span last month, red gave it back. '+(byCh?'Pick a channel in the filter bar to bridge its sub-channels instead.':'Showing sub-channels within '+S.ch+'.')+'</figcaption>';
+         '<figcaption style="margin-top:8px">'+(useMop?'Green bars beat their channel MOP, red fell short. Others carries no MOP, so its full volume shows as a gain. ':'Green bars added BQL against the same span last month, red gave it back. ')+(CMP()==='mop'&&!byCh?'MOP has no sub-channel split, so this bridge falls back to LMTD. ':'')+(byCh?'Pick a channel in the filter bar to bridge its sub-channels instead.':'Showing sub-channels within '+S.ch+'.')+'</figcaption>';
 }
 
 /* ---- vertical bar chart, SVG ---- */
@@ -1072,17 +1073,19 @@ function vBars(q, caption){
 
 function dodTable(){
   const DAYS=10;
-  const sep=series(D.CUR), aug=series(D.PRV), L=D.LAST, from=Math.max(1,L-(DAYS-1));
+  const isMop = CMP()==='mop';
+  const mopD = isMop ? (S.sub!=='all'?0:mopFor(S.city==='all'?null:S.city,S.ch==='all'?null:S.ch))/rangeDays() : 0;
+  const sep=series(D.CUR), aug=isMop ? new Array(32).fill(mopD) : series(D.PRV), L=D.LAST, from=Math.max(1,L-(DAYS-1));
   const nD=L-from+1;
   const WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let sT=0,aT=0;
-  let t='<div class="tw"><table class="dt" style="min-width:560px"><tr><th>Date</th><th>MTD · '+D.CURN+'</th><th>LMTD · '+D.PRVN+'</th><th>Δ</th><th>Δ%</th><th>Share of '+D.CURN+' '+nD+'d</th></tr>';
+  let t='<div class="tw"><table class="dt" style="min-width:560px"><tr><th>Date</th><th>MTD · '+D.CURN+'</th><th>'+(isMop?'MOP / day':'LMTD · '+D.PRVN)+'</th><th>Δ</th><th>Δ%</th><th>Share of '+D.CURN+' '+nD+'d</th></tr>';
   for(let d=from; d<=L; d++){ sT+=sep[d]; aT+=aug[d]; }
   for(let d=from; d<=L; d++){
     const s=sep[d], a=aug[d], dd=s-a;
     const wdS=WD[new Date(D.YR,D.CUR-1,d).getDay()], wdA=WD[new Date(D.PYR,D.PRV-1,d).getDay()];
     t+='<tr'+((a && dd/a*100<=-20)?' class="hi"':'')+'>'+
-       '<td>'+d+' <span class="m" style="font-weight:400">'+wdS+' / '+wdA+'</span></td>'+
+       '<td>'+d+' <span class="m" style="font-weight:400">'+wdS+(isMop?'':' / '+wdA)+'</span></td>'+
        '<td class="num">'+FMT(s)+'</td><td class="num m">'+FMT(a)+'</td>'+
        '<td class="num">'+DLT(dd)+'</td>'+
        '<td class="num">'+(a?DPC(dd/a*100):'–')+'</td>'+
