@@ -1145,14 +1145,14 @@ function bridge(startV, endV){
   s+='</svg>';
 
   let t='<div class="tw" style="margin-top:10px"><table class="dt compact" style="min-width:480px">'+
-        '<tr><th>'+(byCh?'Channel':'Sub-channel')+'</th><th>'+SL+'</th><th>'+rangeLabel()+'</th><th>Δ</th><th>Δ%</th><th>Share of net</th></tr>';
+        '<tr><th>'+(byCh?'Channel':'Sub-channel')+'</th><th>'+rangeLabel()+'</th><th>'+SL+'</th><th>Δ</th><th>Δ%</th><th>Share of net</th></tr>';
   bars.forEach(b=>{
     const lv=l[b.n]?.bql||0, mv=m[b.n]?.bql||0;
-    t+='<tr><td>'+b.n+'</td><td class="num m">'+FMT(b.roll?'':lv)+'</td><td class="num">'+FMT(b.roll?'':mv)+'</td>'+
+    t+='<tr><td>'+b.n+'</td><td class="num">'+FMT(b.roll?'':mv)+'</td><td class="num m">'+FMT(b.roll?'':lv)+'</td>'+
        '<td class="num">'+DLT(b.d)+'</td><td class="num">'+(lv&&!b.roll?DPC(b.d/lv*100):'–')+'</td>'+
        '<td class="num m">'+(net?(b.d/net*100).toFixed(0)+'%':'–')+'</td></tr>';
   });
-  t+='<tr class="tot"><td>Net movement</td><td class="num">'+FMT(startV)+'</td><td class="num">'+FMT(endV)+'</td>'+
+  t+='<tr class="tot"><td>Net movement</td><td class="num">'+FMT(endV)+'</td><td class="num">'+FMT(startV)+'</td>'+
      '<td class="num">'+DLT(net)+'</td><td class="num">'+(startV?DPC(net/startV*100):'–')+'</td><td class="num">100%</td></tr></table></div>';
 
   return '<h3>BQL movement · '+SL+' → '+rangeLabel()+' <span class="n">bridged by '+(byCh?'channel':'sub-channel')+'</span></h3>'+
