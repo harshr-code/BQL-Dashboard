@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BQL Requirement Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#F6F7F8; --surface:#FFFFFF; --sunk:#EDF0F2;
+    --ink:#171B1F; --ink2:#4A545E; --muted:#77828D;
+    --line:#E3E7EA; --line2:#D2D8DD;
+    --accent:#17557F; --accent2:#3E88BC;
+    --crit:#BE3A2B; --critbg:#FAEBE8;
+    --warn:#A86A0A; --warnbg:#FBF2E1;
+    --good:#1F6F52; --goodbg:#E9F3EE;
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --ground:#121518; --surface:#1A1E22; --sunk:#252A2F;
+    --ink:#E9ECEF; --ink2:#B2BCC5; --muted:#8A949E;
+    --line:#2B3138; --line2:#39414A;
+    --accent:#5FA8D8; --accent2:#7FB9E0;
+    --crit:#F07A68; --critbg:#33201C;
+    --warn:#E0A649; --warnbg:#312715;
+    --good:#5FBF96; --goodbg:#182D26;
+  }}
+  :root[data-theme="dark"]{
+    --ground:#121518; --surface:#1A1E22; --sunk:#252A2F;
+    --ink:#E9ECEF; --ink2:#B2BCC5; --muted:#8A949E;
+    --line:#2B3138; --line2:#39414A;
+    --accent:#5FA8D8; --accent2:#7FB9E0;
+    --crit:#F07A68; --critbg:#33201C;
+    --warn:#E0A649; --warnbg:#312715;
+    --good:#5FBF96; --goodbg:#182D26;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--ground); color:var(--ink); font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:15px; line-height:1.45; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1100px; margin:0 auto; padding:24px 16px 56px;}
+  .num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;}
+  a{color:var(--accent)}
+  .back{font-family:Archivo,sans-serif; font-size:12px; font-weight:600; text-decoration:none}
+  h1{font-family:Archivo,sans-serif; font-size:24px; margin:8px 0 4px; letter-spacing:-.01em}
+  .lede{color:var(--ink2); font-size:14px; margin:0 0 4px; max-width:760px}
+  h2{font-family:Archivo,sans-serif; font-size:15px; margin:28px 0 10px; border-left:4px solid var(--accent); padding-left:10px}
+  h2 .n{font-weight:400; color:var(--muted); font-size:12.5px; margin-left:6px}
+
+  .controls{display:flex; flex-wrap:wrap; gap:12px 14px; align-items:flex-end; margin-top:16px; padding:12px 14px; background:var(--surface); border:1px solid var(--line); border-radius:5px; position:sticky; top:0; z-index:10}
+  .fg{display:flex; flex-direction:column; gap:3px}
+  .fg label{font-family:Archivo,sans-serif; font-size:9.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .fg select,.fg input{font-family:inherit; font-size:13px; padding:6px 9px; border:1px solid var(--line2); border-radius:3px; background:var(--surface); color:var(--ink)}
+  .fg select{min-width:150px}
+  .fg input{width:96px}
+  .fg input.need{border-color:var(--warn); background:var(--warnbg)}
+  .fg select:focus-visible,.fg input:focus-visible,button:focus-visible,input[type=range]:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  .btn{font-family:Archivo,sans-serif; font-size:11px; font-weight:600; padding:7px 11px; border:1px solid var(--line2); border-radius:3px; background:var(--surface); color:var(--ink2); cursor:pointer}
+
+  .heroes{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin-top:14px}
+  .hero{background:var(--surface); border:1px solid var(--line); border-top:3px solid var(--line2); border-radius:5px; padding:12px 13px}
+  .hero .k{font-family:Archivo,sans-serif; font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--muted)}
+  .hero .v{font-family:Archivo,sans-serif; font-size:26px; font-weight:700; line-height:1.1; margin-top:4px}
+  .hero .d{font-size:12px; color:var(--muted); margin-top:3px}
+  .hero.good{border-top-color:var(--good)} .hero.good .v{color:var(--good)}
+  .hero.bad{border-top-color:var(--crit)} .hero.bad .v{color:var(--crit)}
+  .verdict{margin-top:12px; padding:11px 13px; border-radius:4px; font-size:13.5px; line-height:1.5; background:var(--sunk); color:var(--ink2)}
+  .verdict b{color:var(--ink)}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:14px 15px}
+  .card .top{display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:10px}
+  .card .ch{font-family:Archivo,sans-serif; font-size:15px; font-weight:700}
+  .card .avail{font-size:12px; color:var(--muted); text-align:right}
+  .card .avail b{color:var(--ink); font-size:14px}
+  .sl{margin:9px 0}
+  .sl .row{display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; color:var(--ink2)}
+  .sl .row output{font-family:Archivo,sans-serif; font-weight:700; font-size:14px; color:var(--accent)}
+  .sl input[type=range]{width:100%; accent-color:var(--accent); margin:4px 0 0}
+  .share{display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12.5px; color:var(--ink2); margin:10px 0 2px}
+  .share input{width:78px; font:inherit; font-size:13px; padding:4px 7px; border:1px solid var(--line2); border-radius:3px; background:var(--surface); color:var(--ink); text-align:right}
+  .res{margin-top:11px; border-top:1px solid var(--line); padding-top:10px; display:grid; grid-template-columns:1fr auto; gap:4px 10px; font-size:12.5px}
+  .res span{color:var(--muted)} .res b{text-align:right; font-weight:600}
+  .res .big{font-family:Archivo,sans-serif; font-size:17px}
+  .gap.pos{color:var(--good)} .gap.neg{color:var(--crit)}
+
+  .tw{overflow-x:auto; -webkit-overflow-scrolling:touch; background:var(--surface); border:1px solid var(--line); border-radius:5px; padding:10px 12px}
+  table{border-collapse:collapse; width:100%; font-size:12.5px; min-width:760px}
+  th{font-family:Archivo,sans-serif; font-size:9.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); text-align:right; padding:0 0 6px 10px; border-bottom:1px solid var(--line2); white-space:nowrap}
+  td{padding:6px 0 6px 10px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap}
+  th:first-child,td:first-child{text-align:left; padding-left:0}
+  td:first-child{font-family:Archivo,sans-serif; font-weight:600}
+  tr.tot td{border-bottom:none; border-top:2px solid var(--line2); font-weight:700}
+  .note{margin-top:14px; font-size:12.5px; color:var(--ink2); line-height:1.55; background:var(--warnbg); border-radius:4px; padding:10px 12px}
+  .foot{margin-top:22px; font-size:12px; color:var(--muted); line-height:1.6}
+  .empty{padding:30px; text-align:center; color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="./">← BQL dashboard</a>
+  <h1>BQL Requirement Simulator</h1>
+  <p class="lede">How many BQL each channel needs to keep a city's SCs at full meeting capacity, at the BQL → MS and MS → MD rates you set. Actual BQL for the chosen city and month is filled in from the live dashboard data.</p>
+
+  <div class="controls" id="controls">
+    <div class="fg"><label for="cCity">City</label><select id="cCity"></select></div>
+    <div class="fg"><label for="cMonth">Month</label><select id="cMonth"></select></div>
+    <div class="fg"><label for="cSC">Active SCs</label><input id="cSC" type="number" min="0" step="1" placeholder="enter"></div>
+    <div class="fg"><label for="cMDd">MD / SC / day</label><input id="cMDd" type="number" min="0" step="0.5" value="2"></div>
+    <div class="fg"><label for="cWD">Days / week</label><input id="cWD" type="number" min="1" max="7" step="1" value="6"></div>
+    <button class="btn" id="cReset" type="button">Reset rates</button>
+  </div>
+
+  <div id="app"><div class="empty">Loading data…</div></div>
+
+  <div class="foot">
+    <b>How it works.</b> MD capacity = active SCs × MD per SC per day × working days in the month. Each channel is assigned a share of that capacity; its BQL needed = MD needed ÷ MS→MD ÷ BQL→MS. Gap = BQL available − BQL needed (positive means surplus).<br>
+    <b>BQL available</b> is actual BQL for the month; for the current month it is projected to a full month from the days reported so far.<br>
+    <b>Defaults.</b> Conversion rates start at a PAN placeholder (BQL→MS 35%, MS→MD 62%) until city × channel MS and MD data is loaded. Capacity shares start at each channel's current share of BQL. SC count is entered manually until the manpower sheet is connected. All inputs are editable and are remembered in this browser.
+  </div>
+</div>
+
+<script>
+const FMT=n=>(n==null||!isFinite(n))?'–':Math.round(n).toLocaleString('en-IN');
+const P1=n=>(n==null||!isFinite(n))?'–':n.toFixed(1)+'%';
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DEF={bqlms:35, msmd:62};          /* PAN placeholder until city x channel rates are loaded */
+let D=null;
+const ST={city:'all', month:0, sc:null, mdd:2, wd:6, rates:{}, shares:{}};
+
+function load(){ try{ const s=JSON.parse(localStorage.getItem('bqlSim')||'{}'); Object.assign(ST,{sc:s.sc??null, mdd:s.mdd??2, wd:s.wd??6, rates:s.rates||{}, shares:s.shares||{}}); }catch(e){} }
+function save(){ try{ localStorage.setItem('bqlSim', JSON.stringify({sc:ST.sc, mdd:ST.mdd, wd:ST.wd, rates:ST.rates, shares:ST.shares})); }catch(e){} }
+
+fetch('dash.json?v='+Date.now()).then(r=>r.json()).then(j=>{ D=j; boot(); })
+  .catch(()=>{ document.getElementById('app').innerHTML='<div class="empty">Could not load data file.</div>'; });
+
+function boot(){
+  load();
+  D.mon=D.dates.map(d=>+d.slice(0,4)*100 + +d.slice(5,7));
+  D.day=D.dates.map(d=>+d.slice(8,10));
+  D.months=[...new Set(D.mon)].sort((a,b)=>a-b);
+  const cc=document.getElementById('cCity');
+  cc.innerHTML='<option value="all">All 23 clusters</option>'+D.cities.slice().sort().map(c=>'<option value="'+c+'">'+c+'</option>').join('');
+  const cm=document.getElementById('cMonth');
+  ST.month=D.months[D.months.length-1];
+  cm.innerHTML=D.months.slice().reverse().map(k=>'<option value="'+k+'">'+MN[k%100-1]+' '+Math.floor(k/100)+'</option>').join('');
+  cm.value=String(ST.month);
+  const sc=document.getElementById('cSC'); if(ST.sc!=null) sc.value=ST.sc;
+  document.getElementById('cMDd').value=ST.mdd; document.getElementById('cWD').value=ST.wd;
+  cc.addEventListener('change',()=>{ ST.city=cc.value; render(); });
+  cm.addEventListener('change',()=>{ ST.month=+cm.value; render(); });
+  sc.addEventListener('input',()=>{ ST.sc = sc.value==='' ? null : Math.max(0,+sc.value); save(); update(); });
+  document.getElementById('cMDd').addEventListener('input',e=>{ ST.mdd=Math.max(0,+e.target.value||0); save(); update(); });
+  document.getElementById('cWD').addEventListener('input',e=>{ ST.wd=Math.min(7,Math.max(1,+e.target.value||6)); save(); update(); });
+  document.getElementById('cReset').addEventListener('click',()=>{
+    for(const ch of D.channels){ delete ST.rates[ST.city+'|'+ch]; delete ST.shares[ST.city+'|'+ch]; }
+    save(); render();
+  });
+  render();
+}
+
+/* actual BQL for the chosen city and month, and whether it is a partial month */
+function bqlFor(){
+  const o={}; for(const ch of D.channels) o[ch]=0;
+  const days=new Set();
+  for(const r of D.daily){
+    if(D.mon[r[0]]!==ST.month) continue;
+    if(ST.city!=='all' && D.cities[r[1]]!==ST.city) continue;
+    o[D.channels[r[2]]]+=r[5]; days.add(D.day[r[0]]);
+  }
+  const y=Math.floor(ST.month/100), m=ST.month%100;
+  const dim=new Date(y,m,0).getDate();
+  const last=days.size?Math.max(...days):0;
+  const proj = last>0 && last<dim ? dim/last : 1;
+  const out={}; for(const ch of D.channels) out[ch]=o[ch]*proj;
+  return {bql:out, dim, last, partial:proj>1};
+}
+function rate(ch){ return ST.rates[ST.city+'|'+ch] || {bqlms:DEF.bqlms, msmd:DEF.msmd}; }
+function share(ch, avail, tot){
+  const k=ST.city+'|'+ch;
+  if(ST.shares[k]!=null) return ST.shares[k];
+  return tot ? Math.round(avail[ch]/tot*1000)/10 : 0;
+}
+
+/* render() builds the page for the current city and month; update() only rewrites numbers,
+   so dragging a slider never rebuilds the element under the pointer */
+function compute(){
+  const {bql, dim, last, partial}=bqlFor();
+  const totAvail=D.channels.reduce((a,c)=>a+bql[c],0);
+  const workDays=dim*ST.wd/7;
+  const capOn = ST.sc!=null && ST.sc>0;
+  const cap = capOn ? ST.sc*ST.mdd*workDays : NaN;
+  const perSC = ST.mdd*workDays;
+  const rows=D.channels.map(ch=>{
+    const r=rate(ch), conv=(r.bqlms/100)*(r.msmd/100);
+    const sh=share(ch,bql,totAvail);
+    const mdFrom=bql[ch]*conv;
+    const mdNeed=capOn? cap*sh/100 : NaN;
+    const msNeed=mdNeed/(r.msmd/100);
+    const bqlNeed=msNeed/(r.bqlms/100);
+    return {ch, avail:bql[ch], r, conv, sh, mdFrom, mdNeed, msNeed, bqlNeed, gap:bql[ch]-bqlNeed};
+  });
+  const T=k=>rows.reduce((a,x)=>a+(isFinite(x[k])?x[k]:0),0);
+  return {rows, dim, last, partial, totAvail, workDays, capOn, cap, perSC,
+          mdFromT:T('mdFrom'), mdNeedT:T('mdNeed'), msNeedT:T('msNeed'), bqlNeedT:T('bqlNeed'),
+          shareT:rows.reduce((a,x)=>a+x.sh,0)};
+}
+const GAP=g=>isFinite(g)?(g>=0?'+':'−')+FMT(Math.abs(g)):'–';
+const GCL=g=>isFinite(g)?(g>=0?'gap pos':'gap neg'):'gap';
+
+function render(){
+  const C=compute();
+  const mName=MN[ST.month%100-1]+' '+Math.floor(ST.month/100);
+  const scope=(ST.city==='all'?'All 23 clusters':ST.city)+' · '+mName+(C.partial?' (projected from '+C.last+' of '+C.dim+' days)':'');
+  let h='<h2>Capacity vs leads <span class="n">'+scope+'</span></h2>';
+  h+='<div class="heroes">'+
+     '<div class="hero" id="h1"><div class="k">MD capacity</div><div class="v num"></div><div class="d"></div></div>'+
+     '<div class="hero" id="h2"><div class="k">MD from current BQL</div><div class="v num"></div><div class="d"></div></div>'+
+     '<div class="hero" id="h3"><div class="k">Leads fill capacity</div><div class="v num"></div><div class="d"></div></div>'+
+     '<div class="hero" id="h4"><div class="k">SCs these leads support</div><div class="v num"></div><div class="d"></div></div>'+
+     '</div><div class="verdict" id="verdict"></div><div class="note" id="sharenote" hidden></div>';
+
+  h+='<h2>By channel <span class="n">set each channel’s conversion and its share of capacity</span></h2><div class="cards">';
+  for(const x of C.rows){
+    const k=x.ch;
+    h+='<div class="card">'+
+       '<div class="top"><div class="ch">'+k+'</div><div class="avail">BQL available<br><b class="num">'+FMT(x.avail)+'</b></div></div>'+
+       sl('bqlms',k,'BQL → MS',x.r.bqlms,1,90)+
+       sl('msmd',k,'MS → MD',x.r.msmd,10,100)+
+       '<div class="share"><span>Share of MD capacity</span><span><input type="number" min="0" max="100" step="0.5" data-share="'+k+'" value="'+x.sh+'" aria-label="'+k+' share of MD capacity"> %</span></div>'+
+       '<div class="res num" data-res="'+k+'">'+
+         '<span>BQL → MD</span><b data-f="conv"></b>'+
+         '<span>MD from current BQL</span><b data-f="mdFrom"></b>'+
+         '<span>MD needed</span><b data-f="mdNeed"></b>'+
+         '<span>MS needed</span><b data-f="msNeed"></b>'+
+         '<span>BQL needed</span><b data-f="bqlNeed" class="big"></b>'+
+         '<span>Gap vs available</span><b data-f="gap"></b>'+
+       '</div></div>';
+  }
+  h+='</div>';
+
+  h+='<h2>Summary</h2><div class="tw"><table class="num"><thead><tr><th>Channel</th><th>BQL available</th><th>BQL→MS</th><th>MS→MD</th><th>BQL→MD</th><th>Capacity share</th><th>MD from BQL</th><th>MD needed</th><th>MS needed</th><th>BQL needed</th><th>Gap</th></tr></thead><tbody>';
+  for(const x of C.rows){
+    h+='<tr data-row="'+x.ch+'"><td>'+x.ch+'</td><td>'+FMT(x.avail)+'</td>'+'<td data-c="bqlms"></td><td data-c="msmd"></td><td data-c="conv"></td><td data-c="sh"></td><td data-c="mdFrom"></td><td data-c="mdNeed"></td><td data-c="msNeed"></td><td data-c="bqlNeed"></td><td data-c="gap"></td></tr>';
+  }
+  h+='<tr class="tot" data-row="__tot"><td>Total</td><td>'+FMT(C.totAvail)+'</td><td></td><td></td><td data-c="conv"></td><td data-c="sh"></td><td data-c="mdFrom"></td><td data-c="mdNeed"></td><td data-c="msNeed"></td><td data-c="bqlNeed"></td><td data-c="gap"></td></tr></tbody></table></div>';
+
+  document.getElementById('app').innerHTML=h;
+  update(C);
+}
+
+function update(C){
+  C=C||compute();
+  document.getElementById('cSC').classList.toggle('need', !C.capOn);
+  const suff = C.capOn && C.cap>0 ? C.mdFromT/C.cap*100 : NaN;
+  const scSup = C.perSC>0 ? C.mdFromT/C.perSC : NaN;
+  setHero('h1', C.capOn?FMT(C.cap):'–', C.capOn ? FMT(ST.sc)+' SCs × '+ST.mdd+'/day × '+C.workDays.toFixed(1)+' days' : 'enter active SCs above', '');
+  setHero('h2', FMT(C.mdFromT), FMT(C.totAvail)+' BQL at the rates below', '');
+  setHero('h3', C.capOn?P1(suff):'–', C.capOn?(suff>=100?'leads can keep SCs fully used':'SCs left without enough meetings'):'needs SC count', C.capOn?(suff>=100?'good':'bad'):'');
+  setHero('h4', isFinite(scSup)?FMT(scSup):'–', 'at '+ST.mdd+' MD/day, '+ST.wd+' days/week', '');
+
+  let v;
+  if(C.capOn){
+    const short=C.rows.filter(x=>x.gap<0).sort((a,b)=>a.gap-b.gap);
+    v = 'At these rates, current leads produce <b>'+FMT(C.mdFromT)+'</b> MDs against capacity of <b>'+FMT(C.cap)+'</b> — <b>'+P1(suff)+'</b>. ' +
+        (suff>=100 ? 'Leads are sufficient; MD per SC is limited by SC capacity, not supply.'
+                   : 'Filling capacity needs <b>'+FMT(C.bqlNeedT)+'</b> BQL against <b>'+FMT(C.totAvail)+'</b> available'+(short.length?'; the largest shortfall is <b>'+short[0].ch+'</b> ('+FMT(-short[0].gap)+' BQL)':'')+'.');
+  } else {
+    v = 'Enter the city’s <b>active SC count</b> to size MD capacity and see BQL needed by channel. Without it, the page shows only what current leads would produce.';
+  }
+  document.getElementById('verdict').innerHTML=v;
+  const sn=document.getElementById('sharenote');
+  if(Math.abs(C.shareT-100)>0.5){ sn.hidden=false; sn.innerHTML='<b>Capacity shares add to '+C.shareT.toFixed(1)+'%</b>, not 100%. MD needed is sized on the shares as entered.'; } else sn.hidden=true;
+
+  for(const x of C.rows){
+    const r=document.querySelector('[data-res="'+CSS.escape(x.ch)+'"]');
+    if(r){
+      r.querySelector('[data-f=conv]').textContent=P1(x.conv*100);
+      r.querySelector('[data-f=mdFrom]').textContent=FMT(x.mdFrom);
+      r.querySelector('[data-f=mdNeed]').textContent=FMT(x.mdNeed);
+      r.querySelector('[data-f=msNeed]').textContent=FMT(x.msNeed);
+      r.querySelector('[data-f=bqlNeed]').textContent=FMT(x.bqlNeed);
+      const g=r.querySelector('[data-f=gap]'); g.textContent=GAP(x.gap); g.className=GCL(x.gap);
+    }
+    const tr=document.querySelector('tr[data-row="'+CSS.escape(x.ch)+'"]');
+    if(tr){
+      const set=(c,v)=>{ tr.querySelector('[data-c='+c+']').textContent=v; };
+      set('bqlms',P1(x.r.bqlms)); set('msmd',P1(x.r.msmd)); set('conv',P1(x.conv*100)); set('sh',P1(x.sh));
+      set('mdFrom',FMT(x.mdFrom)); set('mdNeed',FMT(x.mdNeed)); set('msNeed',FMT(x.msNeed)); set('bqlNeed',FMT(x.bqlNeed));
+      const g=tr.querySelector('[data-c=gap]'); g.textContent=GAP(x.gap); g.className=GCL(x.gap);
+    }
+  }
+  const tt=document.querySelector('tr[data-row="__tot"]');
+  if(tt){
+    const set=(c,v)=>{ tt.querySelector('[data-c='+c+']').textContent=v; };
+    set('conv',P1(C.totAvail?C.mdFromT/C.totAvail*100:NaN)); set('sh',P1(C.shareT)); set('mdFrom',FMT(C.mdFromT));
+    set('mdNeed',C.capOn?FMT(C.mdNeedT):'–'); set('msNeed',C.capOn?FMT(C.msNeedT):'–'); set('bqlNeed',C.capOn?FMT(C.bqlNeedT):'–');
+    const gT=C.capOn?C.totAvail-C.bqlNeedT:NaN; const g=tt.querySelector('[data-c=gap]'); g.textContent=GAP(gT); g.className=GCL(gT);
+  }
+}
+function setHero(id,v,d,tone){
+  const e=document.getElementById(id); if(!e) return;
+  e.className='hero '+(tone||''); e.querySelector('.v').textContent=v; e.querySelector('.d').textContent=d;
+}
+function sl(key,ch,label,val,min,max){
+  return '<div class="sl"><div class="row"><span>'+label+'</span><output data-o="'+key+'|'+ch+'">'+(+val).toFixed(1)+'%</output></div>'+
+         '<input type="range" min="'+min+'" max="'+max+'" step="0.5" value="'+val+'" data-k="'+key+'" data-ch="'+ch+'" aria-label="'+ch+' '+label+'"></div>';
+}
+
+/* sliders and share inputs: update numbers in place */
+document.addEventListener('input', e=>{
+  const t=e.target;
+  if(t.matches('input[type=range][data-k]')){
+    const k=ST.city+'|'+t.dataset.ch, r=Object.assign({}, rate(t.dataset.ch));
+    r[t.dataset.k]=+t.value; ST.rates[k]=r; save();
+    const o=document.querySelector('output[data-o="'+t.dataset.k+'|'+CSS.escape(t.dataset.ch)+'"]'); if(o) o.textContent=(+t.value).toFixed(1)+'%';
+    update();
+  } else if(t.matches('input[data-share]')){
+    ST.shares[ST.city+'|'+t.dataset.share] = Math.max(0, +t.value||0); save(); update();
+  }
+});
+</script>
+</body>
+</html>
