@@ -189,7 +189,7 @@ table.dt.compact td:first-child{font-size:11.5px;}
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">BQL inflow · live from lead-level data · 23 clusters</div>
+    <div class="eyebrow">BQL inflow · live from lead-level data · 27 cities</div>
     <h1>BQL Inflow — <span id="asof">…</span></h1>
   </header>
 
@@ -243,7 +243,7 @@ table.dt.compact td:first-child{font-size:11.5px;}
   </section>
 
   <div class="foot">
-    <b>Source.</b> Lead-level raw data, all rows. BQL is the sum of <code>bill_qualified</code>, not a row count. Delhi NCR merges Delhi, Noida, Ghaziabad, Gurgaon and Faridabad. Four channels are in scope: Digital, Referral, BTL and SolarPro. Cold Marketing, Newspaper, Experience Centre, IVR and Affiliate are excluded. Referral leads whose sub-source is BTL count under BTL, not Referral.<br>
+    <b>Source.</b> Lead-level raw data, all rows. BQL is the sum of <code>bill_qualified</code>, not a row count. Delhi NCR is shown as five separate cities: Delhi, Noida, Ghaziabad, Gurgaon and Faridabad. Four channels are in scope: Digital, Referral, BTL and SolarPro. Cold Marketing, Newspaper, Experience Centre, IVR and Affiliate are excluded. Referral leads whose sub-source is BTL count under BTL, not Referral.<br>
     <b>Benchmarks.</b> Switch with <i>Compare vs</i> in the filter bar. LMTD is the same day-span of the previous month. MOP is a flat daily target, so MOP for any window is the daily target times the days selected; it has no sub-channel split.<br>
     <b>Validation.</b> Every refresh checks the comparison month and each settled day against what is already published, and refuses to publish on a structural move. Late-arriving rows shift past days by a few leads.
   </div>
@@ -279,7 +279,7 @@ function boot(){
   D.months = [...new Set(D.mon)].sort((a,b)=>a-b);
   D.plans = D.plans || (D.mopRate ? {[D.planMonth||'2026-09']: D.mopRate} : {});
   document.getElementById('asof').textContent = new Date(D.lastDate+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long'});
-  msInit('city','fCity', D.cities, 'All 23 clusters');
+  msInit('city','fCity', D.cities, 'All cities');
   msInit('ch','fCh', D.channels, 'All channels');
   msInit('sub','fSub', subsFor(), 'All sub-channels');
   S.month = D.months[D.months.length-1];
@@ -595,7 +595,7 @@ function render(){
   h+='<section id="s-quality"><h2>5 · Lead quality <span class="n">LQI buckets</span></h2>';
   h+='<p class="lede">BQL-weighted score distribution. Buckets: 0–2, &gt;2–5, &gt;5–7, &gt;7–9, &gt;9–10. Responds to every filter including the date range.</p>';
   h+='<div class="inlinefilters"><span class="ifl">Showing</span>'+
-     '<b>'+(selLabel('city','All 23 clusters'))+'</b><span class="ifl">·</span>'+
+     '<b>'+(selLabel('city','All cities'))+'</b><span class="ifl">·</span>'+
      '<b>'+(selLabel('ch','All channels'))+'</b><span class="ifl">·</span>'+
      '<b>'+(selLabel('sub','All sub-channels'))+'</b><span class="ifl">·</span>'+
      '<b>'+rangeLabel()+'</b>'+
@@ -652,7 +652,7 @@ function lrmAgg(m, ch, city, sub){
 }
 function lrmSection(){
   const city = S.city==='all' ? null : S.city;
-  const scope = selLabel('city','All 23 clusters');
+  const scope = selLabel('city','All cities');
   const m = lrmAgg(D.CUR,'Digital',city), l = lrmAgg(D.PRV,'Digital',city);
 
   let h='<section id="s-lrm"><h2>2 · Lead sent to LRM <span class="n">Digital · '+scope+' · '+rangeLabel()+'</span></h2>';
@@ -730,7 +730,7 @@ function lrmDaily(city, scope){
 
 function refSection(){
   const m=refSplit(D.CUR), l=refSplit(D.PRV);
-  const scope = selLabel('city','All 23 clusters');
+  const scope = selLabel('city','All cities');
   let h='<section id="s-referral"><h2>6 · SC-generated referrals <span class="n">'+scope+' · '+rangeLabel()+'</span></h2>';
   h+='<p class="lede">Referral BQL split by whether a Solar Consultant sourced it. Sales sub-source is SC-generated; everything else in the Referral channel is not. BTL-sourced referrals are excluded here because they now sit under BTL.</p>';
   h+='<div class="inlinefilters"><span class="ifl">Showing</span><b>'+scope+'</b><span class="ifl">·</span><b>'+rangeLabel()+' vs '+D.PRVN+' '+S.from+'–'+S.to+'</b><span class="ifl" style="margin-left:auto">City and date filters at the top drive this section</span></div>';
@@ -1046,7 +1046,7 @@ function navBar(){
   return '<nav class="jump">'+items.map(x=>'<a href="#'+x[0]+'">'+x[1]+'</a>').join('')+'</nav>';
 }
 function scopeLine(){
-  return [selLabel('city','All 23 clusters'), selLabel('ch','all channels'), (SEL.sub.length?selLabel('sub',''):null)].filter(Boolean).join(' · ');
+  return [selLabel('city','All cities'), selLabel('ch','all channels'), (SEL.sub.length?selLabel('sub',''):null)].filter(Boolean).join(' · ');
 }
 /* ---- SC referral, single city: vertical paired bars ---- */
 function refCityBars(m, l, city){
